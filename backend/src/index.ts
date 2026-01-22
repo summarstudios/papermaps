@@ -13,18 +13,13 @@ import { contactRoutes } from './modules/contact/contact.routes.js';
 import { config } from './config.js';
 
 // Only use pino-pretty in dev if available, otherwise use standard JSON logging
-let loggerTransport: any = undefined;
-if (config.isDev) {
-  try {
-    require.resolve('pino-pretty');
-    loggerTransport = {
+// In production, always use JSON logging for better log aggregation
+const loggerTransport = config.isDev
+  ? {
       target: 'pino-pretty',
       options: { colorize: true },
-    };
-  } catch {
-    // pino-pretty not available, use default JSON logging
-  }
-}
+    }
+  : undefined;
 
 const fastify = Fastify({
   logger: {
