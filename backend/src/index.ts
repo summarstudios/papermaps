@@ -9,6 +9,7 @@ import { tagsRoutes } from './modules/tags/tags.routes.js';
 import { scrapingRoutes } from './modules/scraping/scraping.routes.js';
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes.js';
 import { regionsRoutes } from './modules/scraping/regions.routes.js';
+import { contactRoutes } from './modules/contact/contact.routes.js';
 import { config } from './config.js';
 
 const fastify = Fastify({
@@ -83,6 +84,7 @@ async function main() {
   await fastify.register(scrapingRoutes, { prefix: '/api/scraping' });
   await fastify.register(regionsRoutes, { prefix: '/api/regions' });
   await fastify.register(dashboardRoutes, { prefix: '/api/dashboard' });
+  await fastify.register(contactRoutes, { prefix: '/api/contact' });
 
   // Start server
   try {

@@ -1,27 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+
 // Contact form data interface
 interface ContactFormData {
   name: string;
   email: string;
   company?: string;
+  phone?: string;
+  service?: string;
   budget?: string;
-  description: string;
-  source?: string;
+  message: string;
 }
-
-// In-memory storage for now (will be replaced with PostgreSQL later)
-// This is just to make the form functional during development
-const leads: (ContactFormData & { id: string; createdAt: Date })[] = [];
 
 export async function POST(request: NextRequest) {
   try {
     const body: ContactFormData = await request.json();
 
     // Validate required fields
-    if (!body.name || !body.email || !body.description) {
+    if (!body.name || !body.email || !body.message) {
       return NextResponse.json(
-        { error: "Name, email, and description are required" },
+        { error: "Name, email, and message are required" },
         { status: 400 }
       );
     }
@@ -35,33 +34,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create lead record
-    const lead = {
-      id: crypto.randomUUID(),
-      name: body.name,
-      email: body.email,
-      company: body.company || undefined,
-      budget: body.budget || undefined,
-      description: body.description,
-      source: body.source || undefined,
-      createdAt: new Date(),
-    };
-
-    // Store in memory (for development)
-    // TODO: Replace with PostgreSQL database insert
-    leads.push(lead);
-
-    console.log("New lead received:", lead);
-
-    // Return success response
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Thank you for your message. We'll be in touch soon!",
-        id: lead.id,
+    // Forward to backend API
+    const response = await fetch(`${API_BASE_URL}/contact/submit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-      { status: 201 }
-    );
+      body: JSON.stringify({
+        name: body.name,
+        email: body.email,
+        company: body.company,
+        phone: body.phone,
+        service: body.service,
+        budget: body.budget,
+        message: body.message,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: data.error || "Failed to submit contact form" },
+        { status: response.status }
+      );
+    }
+
+    return NextResponse.json(data, { status: 201 });
   } catch (error) {
     console.error("Contact form error:", error);
     return NextResponse.json(
@@ -69,13 +68,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-// GET endpoint to retrieve leads (protected in production)
-export async function GET() {
-  // In production, this should be protected by authentication
-  return NextResponse.json({
-    leads,
-    total: leads.length,
-  });
 }

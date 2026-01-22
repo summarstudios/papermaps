@@ -31,6 +31,29 @@ class ApiClient {
     return response.json();
   }
 
+  // Public request (no auth token)
+  private async publicRequest<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Request failed' }));
+      throw new Error(error.error || 'Request failed');
+    }
+
+    return response.json();
+  }
+
   // Auth
   async login(email: string, password: string) {
     const data = await this.request<{ token: string; user: any }>('/auth/login', {
@@ -245,6 +268,65 @@ class ApiClient {
     return this.request(`/regions/${id}/toggle`, {
       method: 'POST',
     });
+  }
+
+  // Contact Form (public - no auth required)
+  async submitContactForm(data: {
+    name: string;
+    email: string;
+    company?: string;
+    phone?: string;
+    service?: string;
+    budget?: string;
+    message: string;
+  }) {
+    return this.publicRequest<{ success: boolean; message: string; id: string }>(
+      '/contact/submit',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  // Contact submissions (admin - auth required)
+  async getContactSubmissions(params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+  }) {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) searchParams.set(key, String(value));
+      });
+    }
+    return this.request<{ submissions: any[]; total: number; page: number; limit: number; totalPages: number }>(
+      `/contact?${searchParams}`
+    );
+  }
+
+  async getContactSubmission(id: string) {
+    return this.request<any>(`/contact/${id}`);
+  }
+
+  async updateContactSubmission(id: string, data: { status?: string; notes?: string }) {
+    return this.request(`/contact/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteContactSubmission(id: string) {
+    return this.request(`/contact/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getContactStats() {
+    return this.request<{ total: number; new: number; read: number; replied: number; archived: number }>(
+      '/contact/stats'
+    );
   }
 }
 
