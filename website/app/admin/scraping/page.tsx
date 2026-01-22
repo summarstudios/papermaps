@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 
 interface ScrapeJob {
@@ -77,6 +78,7 @@ export default function ScrapingPage() {
     maxResults: 25,
   });
   const [creating, setCreating] = useState(false);
+  const previousJobsRef = useRef<Map<string, string>>(new Map());
 
   const fetchData = async () => {
     try {
@@ -85,7 +87,30 @@ export default function ScrapingPage() {
         apiClient.getRegions(),
         apiClient.getScrapingStats(),
       ]);
-      setJobs(jobsData.data);
+
+      // Check for status changes and show notifications
+      const newJobs = jobsData.data as ScrapeJob[];
+      newJobs.forEach((job) => {
+        const previousStatus = previousJobsRef.current.get(job.id);
+        if (previousStatus && previousStatus !== job.status) {
+          if (job.status === 'COMPLETED') {
+            toast.success(`Scrape completed: ${job.query}`, {
+              description: `Found ${job.leadsFound} leads, created ${job.leadsCreated} new leads.`,
+            });
+          } else if (job.status === 'FAILED') {
+            toast.error(`Scrape failed: ${job.query}`, {
+              description: 'Check the job details for more information.',
+            });
+          } else if (job.status === 'RUNNING' && previousStatus === 'PENDING') {
+            toast.info(`Scrape started: ${job.query}`, {
+              description: 'Job is now running...',
+            });
+          }
+        }
+        previousJobsRef.current.set(job.id, job.status);
+      });
+
+      setJobs(newJobs);
       setRegions(regionsData);
       setStats(statsData);
     } catch (error) {
@@ -95,16 +120,25 @@ export default function ScrapingPage() {
     }
   };
 
+  // Use a ref to track if there are active jobs, avoiding useEffect dependency issues
+  const hasActiveJobsRef = useRef(false);
+
+  // Update the ref whenever jobs change
+  useEffect(() => {
+    hasActiveJobsRef.current = jobs.some((j) => j.status === 'RUNNING' || j.status === 'PENDING');
+  }, [jobs]);
+
+  // Initial fetch and polling setup - runs only once on mount
   useEffect(() => {
     fetchData();
     // Poll for updates every 10 seconds if there are running jobs
     const interval = setInterval(() => {
-      if (jobs.some((j) => j.status === 'RUNNING' || j.status === 'PENDING')) {
+      if (hasActiveJobsRef.current) {
         fetchData();
       }
     }, 10000);
     return () => clearInterval(interval);
-  }, [jobs]);
+  }, []); // Empty dependency array - only run on mount
 
   const handleCreateJob = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,9 +163,15 @@ export default function ScrapingPage() {
         regionId: '',
         maxResults: 25,
       });
+      toast.success('Scrape job started', {
+        description: `Searching for "${newJob.query}" - you'll be notified when it completes.`,
+      });
       fetchData();
     } catch (error) {
       console.error('Failed to create job:', error);
+      toast.error('Failed to start scrape job', {
+        description: error instanceof Error ? error.message : 'Please try again.',
+      });
     } finally {
       setCreating(false);
     }
@@ -140,9 +180,13 @@ export default function ScrapingPage() {
   const handleCancelJob = async (jobId: string) => {
     try {
       await apiClient.cancelScrapeJob(jobId);
+      toast.info('Job cancelled');
       fetchData();
     } catch (error) {
       console.error('Failed to cancel job:', error);
+      toast.error('Failed to cancel job', {
+        description: error instanceof Error ? error.message : 'Please try again.',
+      });
     }
   };
 

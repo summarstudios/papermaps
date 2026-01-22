@@ -34,7 +34,8 @@ export const perplexityClient = {
         'Authorization': `Bearer ${config.perplexityApiKey}`,
       },
       body: JSON.stringify({
-        model: 'llama-3.1-sonar-small-128k-online',
+        // Updated to use current Perplexity Sonar model (the old llama-3.1-sonar-small-128k-online was deprecated)
+        model: 'sonar',
         messages: [
           {
             role: 'system',
@@ -51,7 +52,20 @@ export const perplexityClient = {
     });
 
     if (!response.ok) {
-      throw new Error(`Perplexity API error: ${response.status}`);
+      // Capture the error response body for better debugging
+      let errorDetails = '';
+      try {
+        const errorBody = await response.text();
+        errorDetails = errorBody;
+        console.error('Perplexity API error response:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorBody,
+        });
+      } catch {
+        console.error('Perplexity API error (could not read body):', response.status, response.statusText);
+      }
+      throw new Error(`Perplexity API error: ${response.status} - ${errorDetails || response.statusText}`);
     }
 
     const data = await response.json() as PerplexityResponse;
