@@ -9,7 +9,7 @@ interface PerplexityResponse {
   }>;
 }
 
-interface BusinessResult {
+export interface BusinessResult {
   name: string;
   description?: string;
   website?: string;

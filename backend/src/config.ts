@@ -1,6 +1,9 @@
+const isDev = process.env.NODE_ENV !== 'production';
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
 export const config = {
   port: parseInt(process.env.PORT || '3001', 10),
-  isDev: process.env.NODE_ENV !== 'production',
+  isDev,
   logLevel: process.env.LOG_LEVEL || 'info',
 
   // JWT
@@ -10,11 +13,13 @@ export const config = {
   // Database
   databaseUrl: process.env.DATABASE_URL || 'postgresql://localhost:5432/summer_studios',
 
-  // Redis
-  redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
+  // Redis (optional in production)
+  redisUrl: process.env.REDIS_URL || (isDev ? 'redis://localhost:6379' : ''),
 
-  // CORS
-  corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3001').split(','),
+  // CORS - allow frontend URL
+  corsOrigins: process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',')
+    : [frontendUrl, 'http://localhost:3000', 'http://localhost:3001'],
 
   // Scraping
   scrapeDelayMs: parseInt(process.env.SCRAPE_DELAY_MS || '3000', 10),
@@ -24,5 +29,5 @@ export const config = {
   perplexityApiKey: process.env.PERPLEXITY_API_KEY || '',
 
   // Frontend
-  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+  frontendUrl,
 };

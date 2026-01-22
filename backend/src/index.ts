@@ -52,7 +52,27 @@ async function main() {
 
   // Health check
   fastify.get('/health', async () => {
-    return { status: 'ok', timestamp: new Date().toISOString() };
+    let database = false;
+    let redis = false;
+
+    // Check database
+    try {
+      const { prisma } = await import('./lib/prisma.js');
+      await prisma.$queryRaw`SELECT 1`;
+      database = true;
+    } catch {
+      database = false;
+    }
+
+    // Check Redis (just check if URL is configured)
+    redis = !!config.redisUrl;
+
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      database,
+      redis,
+    };
   });
 
   // Register routes

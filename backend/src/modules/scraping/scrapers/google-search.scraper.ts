@@ -1,5 +1,6 @@
-import { chromium, Browser } from 'playwright-extra';
+import { chromium } from 'playwright-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+// @ts-ignore
 import UserAgent from 'user-agents';
 import * as cheerio from 'cheerio';
 import PQueue from 'p-queue';

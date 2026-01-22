@@ -5,7 +5,7 @@ import { googleMapsScraper } from '../../modules/scraping/scrapers/google-maps.s
 import { googleSearchScraper } from '../../modules/scraping/scrapers/google-search.scraper.js';
 import { perplexityClient } from '../../modules/scraping/utils/perplexity.js';
 
-interface ScrapeJobData {
+export interface ScrapeJobData {
   jobId: string;
   type: ScrapeJobType;
   query: string;
