@@ -81,7 +81,10 @@ export default function AboutPage() {
         <div className="absolute inset-0 grid-pattern opacity-30" />
 
         {/* Background visuals */}
-        <GeometricShapes variant="corner" className="top-20 right-0 opacity-40" />
+        <GeometricShapes
+          variant="corner"
+          className="top-20 right-0 opacity-40"
+        />
         <GlowOrb
           className="top-0 right-1/4"
           color="var(--accent)"
@@ -133,9 +136,9 @@ export default function AboutPage() {
                   mediocre work at premium prices.
                 </p>
                 <p>
-                  We're developers and designers who believe great websites
-                  shouldn't cost a fortune or take forever. We keep our team
-                  small, our processes efficient, and our prices fair.
+                  We&apos;re developers and designers who believe great websites
+                  shouldn&apos;t cost a fortune or take forever. We keep our
+                  team small, our processes efficient, and our prices fair.
                 </p>
                 <p>
                   Based in South India, we work with clients across Bangalore,
@@ -220,7 +223,10 @@ export default function AboutPage() {
       {/* Values */}
       <section className="py-16 lg:py-24 relative">
         {/* Background decorations */}
-        <TechLines variant="vertical" className="right-0 opacity-20 hidden lg:block" />
+        <TechLines
+          variant="vertical"
+          className="right-0 opacity-20 hidden lg:block"
+        />
 
         <div className="max-w-[1400px] mx-auto px-6 lg:px-10 relative z-10">
           <motion.div
@@ -258,7 +264,9 @@ export default function AboutPage() {
                         className="opacity-80 group-hover:opacity-100 transition-opacity"
                       />
                     </div>
-                    <h3 className="text-lg font-semibold mb-2">{value.title}</h3>
+                    <h3 className="text-lg font-semibold mb-2">
+                      {value.title}
+                    </h3>
                     <p className="text-[var(--gray-400)] text-sm leading-relaxed">
                       {value.description}
                     </p>
@@ -341,8 +349,8 @@ export default function AboutPage() {
               Want to work with us?
             </h2>
             <p className="text-[var(--gray-400)] text-lg mb-8 max-w-xl mx-auto">
-              We're always looking for exciting projects. Let's build something
-              great together.
+              We&apos;re always looking for exciting projects. Let&apos;s build
+              something great together.
             </p>
             <Button href="/contact" size="lg">
               Get in Touch

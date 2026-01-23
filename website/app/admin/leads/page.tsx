@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useCallback } from 'react';
-import Link from 'next/link';
-import { apiClient } from '@/lib/api-client';
+import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
+import { apiClient } from "@/lib/api-client";
 
 interface Lead {
   id: string;
@@ -21,47 +21,156 @@ interface Lead {
   tags: { id: string; name: string; color: string }[];
 }
 
-const STAGES = ['NEW', 'CONTACTED', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST'];
+const STAGES = [
+  "NEW",
+  "CONTACTED",
+  "QUALIFIED",
+  "PROPOSAL",
+  "NEGOTIATION",
+  "WON",
+  "LOST",
+];
 
-const STAGE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  NEW: { bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-400' },
-  CONTACTED: { bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', text: 'text-yellow-400' },
-  QUALIFIED: { bg: 'bg-purple-500/10', border: 'border-purple-500/30', text: 'text-purple-400' },
-  PROPOSAL: { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-400' },
-  NEGOTIATION: { bg: 'bg-orange-500/10', border: 'border-orange-500/30', text: 'text-orange-400' },
-  WON: { bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-400' },
-  LOST: { bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-400' },
+const STAGE_COLORS: Record<
+  string,
+  { bg: string; border: string; text: string }
+> = {
+  NEW: {
+    bg: "bg-blue-500/10",
+    border: "border-blue-500/30",
+    text: "text-blue-400",
+  },
+  CONTACTED: {
+    bg: "bg-yellow-500/10",
+    border: "border-yellow-500/30",
+    text: "text-yellow-400",
+  },
+  QUALIFIED: {
+    bg: "bg-purple-500/10",
+    border: "border-purple-500/30",
+    text: "text-purple-400",
+  },
+  PROPOSAL: {
+    bg: "bg-cyan-500/10",
+    border: "border-cyan-500/30",
+    text: "text-cyan-400",
+  },
+  NEGOTIATION: {
+    bg: "bg-orange-500/10",
+    border: "border-orange-500/30",
+    text: "text-orange-400",
+  },
+  WON: {
+    bg: "bg-green-500/10",
+    border: "border-green-500/30",
+    text: "text-green-400",
+  },
+  LOST: {
+    bg: "bg-red-500/10",
+    border: "border-red-500/30",
+    text: "text-red-400",
+  },
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
-  URGENT: 'bg-red-500',
-  HIGH: 'bg-orange-500',
-  MEDIUM: 'bg-yellow-500',
-  LOW: 'bg-gray-500',
+  URGENT: "bg-red-500",
+  HIGH: "bg-orange-500",
+  MEDIUM: "bg-yellow-500",
+  LOW: "bg-gray-500",
 };
+
+const CATEGORIES = [
+  "STARTUP",
+  "RESTAURANT",
+  "HOTEL",
+  "ECOMMERCE",
+  "SALON",
+  "CLINIC",
+  "GYM",
+  "RETAIL",
+  "EDUCATION",
+  "REAL_ESTATE",
+  "AGENCY",
+  "OTHER",
+];
+
+const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [draggedLead, setDraggedLead] = useState<Lead | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [selectedStage, setSelectedStage] = useState<string>("");
+  const [selectedPriority, setSelectedPriority] = useState<string>("");
+  const [selectedCity, setSelectedCity] = useState<string>("");
+  const [hasWebsite, setHasWebsite] = useState<string>("");
+  const [minScore, setMinScore] = useState<string>("");
+  const [sortBy, setSortBy] = useState<string>("createdAt");
+  const [sortOrder, setSortOrder] = useState<string>("desc");
+
+  // Get unique cities from leads for filter dropdown
+  const cities = [
+    ...new Set(leads.map((l) => l.city).filter((c): c is string => Boolean(c))),
+  ].sort();
 
   const fetchLeads = useCallback(async () => {
     try {
-      const params: any = { limit: 200 };
+      const params: Record<string, string | number> = { limit: 200 };
       if (searchQuery) params.search = searchQuery;
       if (selectedCategory) params.category = selectedCategory;
+      if (selectedStage) params.stage = selectedStage;
+      if (selectedPriority) params.priority = selectedPriority;
+      if (selectedCity) params.city = selectedCity;
+      if (hasWebsite) params.hasWebsite = hasWebsite;
+      if (minScore) params.minScore = parseInt(minScore);
+      if (sortBy) params.sortBy = sortBy;
+      if (sortOrder) params.sortOrder = sortOrder;
 
       const data = await apiClient.getLeads(params);
       setLeads(data.data);
     } catch (error) {
-      console.error('Failed to fetch leads:', error);
+      console.error("Failed to fetch leads:", error);
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, selectedCategory]);
+  }, [
+    searchQuery,
+    selectedCategory,
+    selectedStage,
+    selectedPriority,
+    selectedCity,
+    hasWebsite,
+    minScore,
+    sortBy,
+    sortOrder,
+  ]);
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedCategory("");
+    setSelectedStage("");
+    setSelectedPriority("");
+    setSelectedCity("");
+    setHasWebsite("");
+    setMinScore("");
+    setSortBy("createdAt");
+    setSortOrder("desc");
+  };
+
+  const activeFilterCount = [
+    selectedCategory,
+    selectedStage,
+    selectedPriority,
+    selectedCity,
+    hasWebsite,
+    minScore,
+  ].filter(Boolean).length;
 
   useEffect(() => {
     fetchLeads();
@@ -83,13 +192,13 @@ export default function LeadsPage() {
 
     // Optimistic update
     setLeads((prev) =>
-      prev.map((l) => (l.id === draggedLead.id ? { ...l, stage } : l))
+      prev.map((l) => (l.id === draggedLead.id ? { ...l, stage } : l)),
     );
 
     try {
       await apiClient.changeLeadStage(draggedLead.id, stage);
     } catch (error) {
-      console.error('Failed to update lead stage:', error);
+      console.error("Failed to update lead stage:", error);
       fetchLeads(); // Revert on error
     }
 
@@ -119,21 +228,21 @@ export default function LeadsPage() {
         <div className="flex items-center gap-3">
           <div className="flex bg-gray-800 rounded-lg p-1">
             <button
-              onClick={() => setViewMode('kanban')}
+              onClick={() => setViewMode("kanban")}
               className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                viewMode === 'kanban'
-                  ? 'bg-gray-700 text-white'
-                  : 'text-gray-400 hover:text-white'
+                viewMode === "kanban"
+                  ? "bg-gray-700 text-white"
+                  : "text-gray-400 hover:text-white"
               }`}
             >
               Kanban
             </button>
             <button
-              onClick={() => setViewMode('list')}
+              onClick={() => setViewMode("list")}
               className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                viewMode === 'list'
-                  ? 'bg-gray-700 text-white'
-                  : 'text-gray-400 hover:text-white'
+                viewMode === "list"
+                  ? "bg-gray-700 text-white"
+                  : "text-gray-400 hover:text-white"
               }`}
             >
               List
@@ -143,34 +252,192 @@ export default function LeadsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <input
-          type="text"
-          placeholder="Search leads..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-accent w-full sm:w-64"
-        />
-        <select
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-          className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-accent"
-        >
-          <option value="">All Categories</option>
-          <option value="STARTUP">Startup</option>
-          <option value="RESTAURANT">Restaurant</option>
-          <option value="HOTEL">Hotel</option>
-          <option value="ECOMMERCE">E-commerce</option>
-          <option value="SALON">Salon</option>
-          <option value="CLINIC">Clinic</option>
-          <option value="GYM">Gym</option>
-          <option value="RETAIL">Retail</option>
-          <option value="OTHER">Other</option>
-        </select>
+      <div className="space-y-3">
+        {/* Search and Filter Toggle */}
+        <div className="flex flex-wrap gap-3 items-center">
+          <input
+            type="text"
+            placeholder="Search leads..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-accent w-full sm:w-64"
+          />
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`px-4 py-2 border rounded-lg flex items-center gap-2 transition-colors ${
+              showFilters || activeFilterCount > 0
+                ? "bg-accent/20 border-accent text-accent"
+                : "bg-gray-800 border-gray-700 text-gray-400 hover:text-white"
+            }`}
+          >
+            <FilterIcon className="w-4 h-4" />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="px-1.5 py-0.5 bg-accent text-black text-xs rounded-full">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+          {activeFilterCount > 0 && (
+            <button
+              onClick={clearFilters}
+              className="px-3 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+
+        {/* Expanded Filters */}
+        {showFilters && (
+          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Stage Filter */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">
+                  Stage
+                </label>
+                <select
+                  value={selectedStage}
+                  onChange={(e) => setSelectedStage(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
+                >
+                  <option value="">All Stages</option>
+                  {STAGES.map((stage) => (
+                    <option key={stage} value={stage}>
+                      {stage.replace("_", " ")}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Category Filter */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">
+                  Category
+                </label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
+                >
+                  <option value="">All Categories</option>
+                  {CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat.replace("_", " ")}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Priority Filter */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">
+                  Priority
+                </label>
+                <select
+                  value={selectedPriority}
+                  onChange={(e) => setSelectedPriority(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
+                >
+                  <option value="">All Priorities</option>
+                  {PRIORITIES.map((priority) => (
+                    <option key={priority} value={priority}>
+                      {priority}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* City Filter */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">
+                  City
+                </label>
+                <select
+                  value={selectedCity}
+                  onChange={(e) => setSelectedCity(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
+                >
+                  <option value="">All Cities</option>
+                  {cities.map((city) => (
+                    <option key={city} value={city}>
+                      {city}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Has Website Filter */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">
+                  Website Status
+                </label>
+                <select
+                  value={hasWebsite}
+                  onChange={(e) => setHasWebsite(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
+                >
+                  <option value="">All</option>
+                  <option value="true">Has Website</option>
+                  <option value="false">No Website</option>
+                </select>
+              </div>
+
+              {/* Min Score Filter */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">
+                  Min Score
+                </label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  min="0"
+                  max="100"
+                  value={minScore}
+                  onChange={(e) => setMinScore(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
+                />
+              </div>
+
+              {/* Sort By */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">
+                  Sort By
+                </label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
+                >
+                  <option value="createdAt">Date Created</option>
+                  <option value="updatedAt">Last Updated</option>
+                  <option value="score">Score</option>
+                  <option value="businessName">Business Name</option>
+                </select>
+              </div>
+
+              {/* Sort Order */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5">
+                  Order
+                </label>
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-accent"
+                >
+                  <option value="desc">Descending</option>
+                  <option value="asc">Ascending</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Kanban Board */}
-      {viewMode === 'kanban' && (
+      {viewMode === "kanban" && (
         <div className="overflow-x-auto pb-4">
           <div className="flex gap-4 min-w-max">
             {STAGES.map((stage) => (
@@ -185,7 +452,7 @@ export default function LeadsPage() {
                 >
                   <div className="flex items-center justify-between">
                     <h3 className={`font-medium ${STAGE_COLORS[stage].text}`}>
-                      {stage.replace('_', ' ')}
+                      {stage.replace("_", " ")}
                     </h3>
                     <span className="text-xs bg-gray-800 px-2 py-0.5 rounded-full text-gray-400">
                       {getLeadsByStage(stage).length}
@@ -210,7 +477,7 @@ export default function LeadsPage() {
       )}
 
       {/* List View */}
-      {viewMode === 'list' && (
+      {viewMode === "list" && (
         <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
           <table className="w-full">
             <thead className="bg-gray-700/50">
@@ -234,7 +501,10 @@ export default function LeadsPage() {
             </thead>
             <tbody className="divide-y divide-gray-700">
               {leads.map((lead) => (
-                <tr key={lead.id} className="hover:bg-gray-700/50 transition-colors">
+                <tr
+                  key={lead.id}
+                  className="hover:bg-gray-700/50 transition-colors"
+                >
                   <td className="px-4 py-4">
                     <Link
                       href={`/admin/leads/${lead.id}`}
@@ -269,11 +539,15 @@ export default function LeadsPage() {
                           style={{ width: `${lead.score}%` }}
                         />
                       </div>
-                      <span className="text-sm text-gray-400">{lead.score}</span>
+                      <span className="text-sm text-gray-400">
+                        {lead.score}
+                      </span>
                     </div>
                   </td>
                   <td className="px-4 py-4">
-                    <span className="text-sm text-gray-400">{lead.category}</span>
+                    <span className="text-sm text-gray-400">
+                      {lead.category}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -309,9 +583,7 @@ function LeadCard({
         />
       </div>
 
-      {lead.city && (
-        <p className="text-xs text-gray-400 mb-2">{lead.city}</p>
-      )}
+      {lead.city && <p className="text-xs text-gray-400 mb-2">{lead.city}</p>}
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
@@ -341,8 +613,36 @@ function LeadCard({
 
 function ScoreIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+    <svg
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M13 10V3L4 14h7v7l9-11h-7z"
+      />
+    </svg>
+  );
+}
+
+function FilterIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+      />
     </svg>
   );
 }

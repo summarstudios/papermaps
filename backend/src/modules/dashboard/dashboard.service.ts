@@ -1,12 +1,24 @@
-import { prisma } from '../../lib/prisma.js';
+import { prisma } from "../../lib/prisma.js";
+import { ProspectStatus } from "@prisma/client";
+
+// Only count promoted LEADs in dashboard stats (not raw prospects)
+const leadFilter = { prospectStatus: ProspectStatus.LEAD };
 
 export const dashboardService = {
   async getStats() {
-    const [totalLeads, newLeads, wonLeads, activeScrapeJobs, totalActivities] = await Promise.all([
-      prisma.lead.count(),
-      prisma.lead.count({ where: { stage: 'NEW' } }),
-      prisma.lead.count({ where: { stage: 'WON' } }),
-      prisma.scrapeJob.count({ where: { status: 'RUNNING' } }),
+    const [
+      totalLeads,
+      totalProspects,
+      newLeads,
+      wonLeads,
+      activeScrapeJobs,
+      totalActivities,
+    ] = await Promise.all([
+      prisma.lead.count({ where: leadFilter }),
+      prisma.lead.count({ where: { prospectStatus: ProspectStatus.PROSPECT } }),
+      prisma.lead.count({ where: { ...leadFilter, stage: "NEW" } }),
+      prisma.lead.count({ where: { ...leadFilter, stage: "WON" } }),
+      prisma.scrapeJob.count({ where: { status: "RUNNING" } }),
       prisma.activity.count(),
     ]);
 
@@ -16,16 +28,18 @@ export const dashboardService = {
     startOfMonth.setHours(0, 0, 0, 0);
 
     const leadsThisMonth = await prisma.lead.count({
-      where: { createdAt: { gte: startOfMonth } },
+      where: { ...leadFilter, createdAt: { gte: startOfMonth } },
     });
 
-    // Calculate average score
+    // Calculate average score (only for leads)
     const avgScoreResult = await prisma.lead.aggregate({
+      where: leadFilter,
       _avg: { score: true },
     });
 
     return {
       totalLeads,
+      totalProspects, // New: count of raw prospects awaiting review
       newLeads,
       wonLeads,
       leadsThisMonth,
@@ -36,10 +50,19 @@ export const dashboardService = {
   },
 
   async getPipelineCounts() {
-    const stages = ['NEW', 'CONTACTED', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST'] as const;
+    const stages = [
+      "NEW",
+      "CONTACTED",
+      "QUALIFIED",
+      "PROPOSAL",
+      "NEGOTIATION",
+      "WON",
+      "LOST",
+    ] as const;
 
     const counts = await prisma.lead.groupBy({
-      by: ['stage'],
+      by: ["stage"],
+      where: leadFilter,
       _count: { id: true },
     });
 
@@ -53,9 +76,10 @@ export const dashboardService = {
 
   async getLeadsByCategory() {
     const categories = await prisma.lead.groupBy({
-      by: ['category'],
+      by: ["category"],
+      where: leadFilter,
       _count: { id: true },
-      orderBy: { _count: { id: 'desc' } },
+      orderBy: { _count: { id: "desc" } },
     });
 
     return categories.map((c) => ({
@@ -66,9 +90,10 @@ export const dashboardService = {
 
   async getLeadsBySource() {
     const sources = await prisma.lead.groupBy({
-      by: ['source'],
+      by: ["source"],
+      where: leadFilter,
       _count: { id: true },
-      orderBy: { _count: { id: 'desc' } },
+      orderBy: { _count: { id: "desc" } },
     });
 
     return sources.map((s) => ({
@@ -80,7 +105,7 @@ export const dashboardService = {
   async getRecentActivities(limit = 10) {
     return prisma.activity.findMany({
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       include: {
         lead: {
           select: { id: true, businessName: true },
@@ -98,9 +123,9 @@ export const dashboardService = {
     startDate.setHours(0, 0, 0, 0);
 
     const leads = await prisma.lead.findMany({
-      where: { createdAt: { gte: startDate } },
+      where: { ...leadFilter, createdAt: { gte: startDate } },
       select: { createdAt: true },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: "asc" },
     });
 
     // Group by date
@@ -110,13 +135,13 @@ export const dashboardService = {
     for (let i = 0; i <= days; i++) {
       const date = new Date(startDate);
       date.setDate(date.getDate() + i);
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = date.toISOString().split("T")[0];
       grouped.set(dateStr, 0);
     }
 
     // Count leads per day
     leads.forEach((lead) => {
-      const dateStr = lead.createdAt.toISOString().split('T')[0];
+      const dateStr = lead.createdAt.toISOString().split("T")[0];
       grouped.set(dateStr, (grouped.get(dateStr) || 0) + 1);
     });
 
@@ -128,18 +153,21 @@ export const dashboardService = {
 
   async getTopPerformers(limit = 5) {
     const performers = await prisma.lead.groupBy({
-      by: ['assignedToId'],
+      by: ["assignedToId"],
       where: {
-        stage: 'WON',
+        ...leadFilter,
+        stage: "WON",
         assignedToId: { not: null },
       },
       _count: { id: true },
-      orderBy: { _count: { id: 'desc' } },
+      orderBy: { _count: { id: "desc" } },
       take: limit,
     });
 
     // Get user details
-    const userIds = performers.map((p) => p.assignedToId).filter(Boolean) as string[];
+    const userIds = performers
+      .map((p) => p.assignedToId)
+      .filter(Boolean) as string[];
     const users = await prisma.user.findMany({
       where: { id: { in: userIds } },
       select: { id: true, name: true, email: true },
@@ -153,17 +181,36 @@ export const dashboardService = {
 
   async getConversionRates() {
     const [total, contacted, qualified, proposal, won] = await Promise.all([
-      prisma.lead.count(),
-      prisma.lead.count({ where: { stage: { in: ['CONTACTED', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'WON'] } } }),
-      prisma.lead.count({ where: { stage: { in: ['QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'WON'] } } }),
-      prisma.lead.count({ where: { stage: { in: ['PROPOSAL', 'NEGOTIATION', 'WON'] } } }),
-      prisma.lead.count({ where: { stage: 'WON' } }),
+      prisma.lead.count({ where: leadFilter }),
+      prisma.lead.count({
+        where: {
+          ...leadFilter,
+          stage: {
+            in: ["CONTACTED", "QUALIFIED", "PROPOSAL", "NEGOTIATION", "WON"],
+          },
+        },
+      }),
+      prisma.lead.count({
+        where: {
+          ...leadFilter,
+          stage: { in: ["QUALIFIED", "PROPOSAL", "NEGOTIATION", "WON"] },
+        },
+      }),
+      prisma.lead.count({
+        where: {
+          ...leadFilter,
+          stage: { in: ["PROPOSAL", "NEGOTIATION", "WON"] },
+        },
+      }),
+      prisma.lead.count({ where: { ...leadFilter, stage: "WON" } }),
     ]);
 
     return {
       newToContacted: total > 0 ? Math.round((contacted / total) * 100) : 0,
-      contactedToQualified: contacted > 0 ? Math.round((qualified / contacted) * 100) : 0,
-      qualifiedToProposal: qualified > 0 ? Math.round((proposal / qualified) * 100) : 0,
+      contactedToQualified:
+        contacted > 0 ? Math.round((qualified / contacted) * 100) : 0,
+      qualifiedToProposal:
+        qualified > 0 ? Math.round((proposal / qualified) * 100) : 0,
       proposalToWon: proposal > 0 ? Math.round((won / proposal) * 100) : 0,
       overallConversion: total > 0 ? Math.round((won / total) * 100) : 0,
     };

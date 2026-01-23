@@ -47,6 +47,7 @@ enum LeadCategory {
 enum LeadSource {
   GOOGLE_SEARCH
   GOOGLE_MAPS
+  GOOGLE_PLACES
   WEBSITE_CONTACT
   REFERRAL
   MANUAL
@@ -73,6 +74,7 @@ enum ScrapeJobType {
   GOOGLE_SEARCH
   GOOGLE_MAPS
   PERPLEXITY
+  DISCOVERY_PIPELINE
 }
 
 enum ScrapeJobStatus {
@@ -81,6 +83,13 @@ enum ScrapeJobStatus {
   COMPLETED
   FAILED
   CANCELLED
+}
+
+enum ProspectStatus {
+  PROSPECT        // Raw scraped business, awaiting review
+  LEAD            // Promoted to sales pipeline
+  NOT_INTERESTED  // Reviewed and rejected
+  ARCHIVED        // Soft deleted / hidden
 }
 
 model User {
@@ -94,15 +103,17 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  leads      Lead[]
-  activities Activity[]
-  scrapeJobs ScrapeJob[]
+  leads         Lead[]
+  activities    Activity[]
+  scrapeJobs    ScrapeJob[]
+  promotedLeads Lead[]     @relation("PromotedLeads")
 
   @@map("users")
 }
 
 model Lead {
   id            String       @id @default(cuid())
+  googlePlaceId String?      @unique // For deduplication with Google Places API
   businessName  String
   contactPerson String?
   email         String?
@@ -111,7 +122,10 @@ model Lead {
   address       String?
   city          String?
   state         String?
+  locality      String?      // Neighborhood/area within city
   country       String       @default("India")
+  latitude      Float?
+  longitude     Float?
   category      LeadCategory @default(OTHER)
   stage         LeadStage    @default(NEW)
   priority      LeadPriority @default(MEDIUM)
@@ -129,6 +143,8 @@ model Lead {
 
   // AI analysis
   perplexityAnalysis String? @db.Text
+  salesIntelligence  Json?   // Structured deep research data (decision makers, company info, pain points, etc.)
+  qualificationError String? // Error message if Lighthouse/qualification failed
 
   // Contact status
   emailVerified     Boolean   @default(false)
@@ -138,6 +154,13 @@ model Lead {
   // Notes
   notes String? @db.Text
 
+  // Prospect management
+  prospectStatus      ProspectStatus @default(PROSPECT)
+  promotedAt          DateTime?      // When promoted from PROSPECT to LEAD
+  promotedById        String?        // Who promoted it
+  reviewedAt          DateTime?      // When last reviewed
+  notInterestedReason String?        // Optional reason for NOT_INTERESTED
+
   // Metadata
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -145,6 +168,7 @@ model Lead {
   // Relations
   assignedToId String?
   assignedTo   User?      @relation(fields: [assignedToId], references: [id])
+  promotedBy   User?      @relation("PromotedLeads", fields: [promotedById], references: [id])
   activities   Activity[]
   tags         TagOnLead[]
   scrapeJobId  String?
@@ -155,6 +179,9 @@ model Lead {
   @@index([score])
   @@index([assignedToId])
   @@index([city, state])
+  @@index([prospectStatus])
+  @@index([prospectStatus, createdAt])
+  @@index([prospectStatus, scrapeJobId])
   @@map("leads")
 }
 
@@ -229,6 +256,7 @@ model ScrapeJob {
   leadsFound     Int @default(0)
   leadsCreated   Int @default(0)
   leadsDuplicate Int @default(0)
+  leadsSkipped   Int @default(0) // Businesses skipped because they have good websites
 
   // Error tracking
   errorMessage String? @db.Text
@@ -241,11 +269,13 @@ model ScrapeJob {
   updatedAt   DateTime  @updatedAt
 
   // Relations
-  regionId  String?
-  region    ScrapingRegion? @relation(fields: [regionId], references: [id])
+  regionId    String?
+  region      ScrapingRegion? @relation(fields: [regionId], references: [id])
   createdById String
-  createdBy User            @relation(fields: [createdById], references: [id])
-  leads     Lead[]
+  createdBy   User            @relation(fields: [createdById], references: [id])
+  leads       Lead[]
+  apiCallLogs ApiCallLog[]
+  zoneScrapeHistory ZoneScrapeHistory[]
 
   @@index([status])
   @@index([type])
@@ -286,4 +316,56 @@ model ContactSubmission {
   @@index([status])
   @@index([createdAt])
   @@map("contact_submissions")
+}
+
+// API Call Logging for cost tracking
+enum ApiProvider {
+  GOOGLE_PLACES
+  PERPLEXITY
+  GOOGLE_MAPS
+  LIGHTHOUSE
+}
+
+model ApiCallLog {
+  id            String      @id @default(cuid())
+  provider      ApiProvider
+  endpoint      String
+  method        String      // GET, POST
+  statusCode    Int
+  responseTimeMs Int
+  success       Boolean
+  error         String?     @db.Text
+  metadata      String?     @db.Text // JSON string
+  estimatedCost Float?      @default(0)
+
+  // Link to scrape job if applicable
+  scrapeJobId   String?
+  scrapeJob     ScrapeJob?  @relation(fields: [scrapeJobId], references: [id], onDelete: SetNull)
+
+  createdAt     DateTime    @default(now())
+
+  @@index([provider])
+  @@index([scrapeJobId])
+  @@index([createdAt])
+  @@map("api_call_logs")
+}
+
+// Track which zones have been scraped for each business type
+// This allows the scraper to skip already-scraped zones and find new leads
+model ZoneScrapeHistory {
+  id           String   @id @default(cuid())
+  city         String   // e.g., "Bangalore"
+  zoneName     String   // e.g., "Koramangala"
+  businessType String   // e.g., "gym", "salon", "clinic"
+  leadsFound   Int      @default(0)
+  scrapedAt    DateTime @default(now())
+
+  // Link to scrape job
+  scrapeJobId  String?
+  scrapeJob    ScrapeJob? @relation(fields: [scrapeJobId], references: [id], onDelete: SetNull)
+
+  @@unique([city, zoneName, businessType]) // One record per zone+businessType combo
+  @@index([city, businessType])
+  @@index([scrapedAt])
+  @@map("zone_scrape_history")
 }

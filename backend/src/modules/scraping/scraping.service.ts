@@ -1,8 +1,13 @@
-import { ScrapeJobStatus, ScrapeJobType, LeadCategory, Prisma } from '@prisma/client';
-import { prisma } from '../../lib/prisma.js';
-import { scrapeQueue } from '../../jobs/queue.js';
-import { lighthouseAnalyzer } from './utils/lighthouse.js';
-import { perplexityClient } from './utils/perplexity.js';
+import {
+  ScrapeJobStatus,
+  ScrapeJobType,
+  LeadCategory,
+  Prisma,
+} from "@prisma/client";
+import { prisma } from "../../lib/prisma.js";
+import { scrapeQueue } from "../../jobs/queue.js";
+import { lighthouseAnalyzer } from "./utils/lighthouse.js";
+import { perplexityClient } from "./utils/perplexity.js";
 
 interface ListJobsParams {
   page?: number;
@@ -36,7 +41,7 @@ export const scrapingService = {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
           region: {
             select: { id: true, name: true, cities: true },
@@ -64,7 +69,7 @@ export const scrapingService = {
   },
 
   async getJobById(id: string) {
-    return prisma.scrapeJob.findUnique({
+    const dbJob = await prisma.scrapeJob.findUnique({
       where: { id },
       include: {
         region: true,
@@ -73,7 +78,7 @@ export const scrapingService = {
         },
         leads: {
           take: 20,
-          orderBy: { score: 'desc' },
+          orderBy: { createdAt: "desc" },
           select: {
             id: true,
             businessName: true,
@@ -83,19 +88,43 @@ export const scrapingService = {
             city: true,
             score: true,
             stage: true,
+            createdAt: true,
           },
         },
       },
     });
+
+    if (!dbJob) return null;
+
+    // Get BullMQ job progress if job is running
+    let progress = null;
+    if (dbJob.status === "RUNNING" && scrapeQueue) {
+      try {
+        const bullJob = await scrapeQueue.getJob(id);
+        if (bullJob) {
+          progress = await bullJob.progress;
+        }
+      } catch (e) {
+        // Ignore errors fetching progress
+      }
+    }
+
+    return {
+      ...dbJob,
+      progress,
+    };
   },
 
   async createJob(data: CreateJobData) {
     const { userId, maxResults, ...jobData } = data;
 
     // For queue-based scrapers (Google Maps, Google Search), check if Redis is available
-    const requiresQueue = jobData.type === 'GOOGLE_MAPS' || jobData.type === 'GOOGLE_SEARCH';
+    const requiresQueue =
+      jobData.type === "GOOGLE_MAPS" || jobData.type === "GOOGLE_SEARCH";
     if (requiresQueue && !scrapeQueue) {
-      throw new Error('Scraping queue not available. Redis is not configured. Only Perplexity scraping is available.');
+      throw new Error(
+        "Scraping queue not available. Redis is not configured. Only Perplexity scraping is available.",
+      );
     }
 
     // Create the job record
@@ -114,7 +143,7 @@ export const scrapingService = {
 
     // Add to the queue for background processing
     if (scrapeQueue) {
-      await scrapeQueue.add('scrape', {
+      await scrapeQueue.add("scrape", {
         jobId: job.id,
         type: job.type,
         query: job.query,
@@ -132,14 +161,14 @@ export const scrapingService = {
     const job = await prisma.scrapeJob.findUnique({ where: { id } });
     if (!job) return null;
 
-    if (job.status !== 'PENDING' && job.status !== 'RUNNING') {
+    if (job.status !== "PENDING" && job.status !== "RUNNING") {
       return job;
     }
 
     return prisma.scrapeJob.update({
       where: { id },
       data: {
-        status: 'CANCELLED',
+        status: "CANCELLED",
         completedAt: new Date(),
       },
     });
@@ -147,7 +176,7 @@ export const scrapingService = {
 
   async retryJob(id: string, userId: string) {
     const job = await prisma.scrapeJob.findUnique({ where: { id } });
-    if (!job || job.status !== 'FAILED') return null;
+    if (!job || job.status !== "FAILED") return null;
 
     // Create a new job with the same parameters
     return this.createJob({
@@ -161,20 +190,26 @@ export const scrapingService = {
     });
   },
 
-  async updateJobStatus(id: string, status: ScrapeJobStatus, results?: {
-    leadsFound?: number;
-    leadsCreated?: number;
-    leadsDuplicate?: number;
-    errorMessage?: string;
-    errorStack?: string;
-  }) {
+  async updateJobStatus(
+    id: string,
+    status: ScrapeJobStatus,
+    results?: {
+      leadsFound?: number;
+      leadsCreated?: number;
+      leadsDuplicate?: number;
+      errorMessage?: string;
+      errorStack?: string;
+    },
+  ) {
     return prisma.scrapeJob.update({
       where: { id },
       data: {
         status,
         ...results,
-        startedAt: status === 'RUNNING' ? new Date() : undefined,
-        completedAt: ['COMPLETED', 'FAILED', 'CANCELLED'].includes(status) ? new Date() : undefined,
+        startedAt: status === "RUNNING" ? new Date() : undefined,
+        completedAt: ["COMPLETED", "FAILED", "CANCELLED"].includes(status)
+          ? new Date()
+          : undefined,
       },
     });
   },
@@ -182,10 +217,10 @@ export const scrapingService = {
   async getStats() {
     const [total, pending, running, completed, failed] = await Promise.all([
       prisma.scrapeJob.count(),
-      prisma.scrapeJob.count({ where: { status: 'PENDING' } }),
-      prisma.scrapeJob.count({ where: { status: 'RUNNING' } }),
-      prisma.scrapeJob.count({ where: { status: 'COMPLETED' } }),
-      prisma.scrapeJob.count({ where: { status: 'FAILED' } }),
+      prisma.scrapeJob.count({ where: { status: "PENDING" } }),
+      prisma.scrapeJob.count({ where: { status: "RUNNING" } }),
+      prisma.scrapeJob.count({ where: { status: "COMPLETED" } }),
+      prisma.scrapeJob.count({ where: { status: "FAILED" } }),
     ]);
 
     // Get total leads created from scraping
@@ -228,7 +263,7 @@ export const scrapingService = {
     } catch (error) {
       return {
         url,
-        error: 'Failed to analyze website',
+        error: "Failed to analyze website",
         lighthouse: null,
         needsRedesign: null,
       };
@@ -242,7 +277,7 @@ export const scrapingService = {
     } catch (error) {
       return {
         results: [],
-        error: 'Failed to search with Perplexity',
+        error: "Failed to search with Perplexity",
       };
     }
   },

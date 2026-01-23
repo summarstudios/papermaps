@@ -1,5 +1,13 @@
-import { Prisma, LeadStage, LeadCategory, LeadPriority, LeadSource, LeadType } from '@prisma/client';
-import { prisma } from '../../lib/prisma.js';
+import {
+  Prisma,
+  LeadStage,
+  LeadCategory,
+  LeadPriority,
+  LeadSource,
+  LeadType,
+  ProspectStatus,
+} from "@prisma/client";
+import { prisma } from "../../lib/prisma.js";
 
 interface ListParams {
   page?: number;
@@ -13,8 +21,8 @@ interface ListParams {
   state?: string;
   hasWebsite?: boolean;
   minScore?: number;
-  sortBy?: 'createdAt' | 'updatedAt' | 'score' | 'businessName';
-  sortOrder?: 'asc' | 'desc';
+  sortBy?: "createdAt" | "updatedAt" | "score" | "businessName";
+  sortOrder?: "asc" | "desc";
 }
 
 interface CreateLeadData {
@@ -49,27 +57,37 @@ interface UpdateLeadData extends Partial<CreateLeadData> {
 
 export const leadsService = {
   async list(params: ListParams) {
-    const { page = 1, limit = 20, sortBy = 'createdAt', sortOrder = 'desc', ...filters } = params;
+    const {
+      page = 1,
+      limit = 20,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+      ...filters
+    } = params;
     const skip = (page - 1) * limit;
 
-    // Build where clause
-    const where: Prisma.LeadWhereInput = {};
+    // Build where clause - only show LEAD status (promoted prospects)
+    const where: Prisma.LeadWhereInput = {
+      prospectStatus: ProspectStatus.LEAD,
+    };
 
     if (filters.stage) where.stage = filters.stage;
     if (filters.category) where.category = filters.category;
     if (filters.priority) where.priority = filters.priority;
     if (filters.assignedToId) where.assignedToId = filters.assignedToId;
-    if (filters.city) where.city = { contains: filters.city, mode: 'insensitive' };
-    if (filters.state) where.state = { contains: filters.state, mode: 'insensitive' };
+    if (filters.city)
+      where.city = { contains: filters.city, mode: "insensitive" };
+    if (filters.state)
+      where.state = { contains: filters.state, mode: "insensitive" };
     if (filters.hasWebsite !== undefined) where.hasWebsite = filters.hasWebsite;
     if (filters.minScore !== undefined) where.score = { gte: filters.minScore };
 
     if (filters.search) {
       where.OR = [
-        { businessName: { contains: filters.search, mode: 'insensitive' } },
-        { contactPerson: { contains: filters.search, mode: 'insensitive' } },
-        { email: { contains: filters.search, mode: 'insensitive' } },
-        { phone: { contains: filters.search, mode: 'insensitive' } },
+        { businessName: { contains: filters.search, mode: "insensitive" } },
+        { contactPerson: { contains: filters.search, mode: "insensitive" } },
+        { email: { contains: filters.search, mode: "insensitive" } },
+        { phone: { contains: filters.search, mode: "insensitive" } },
       ];
     }
 
@@ -125,7 +143,7 @@ export const leadsService = {
           include: { tag: true },
         },
         activities: {
-          orderBy: { createdAt: 'desc' },
+          orderBy: { createdAt: "desc" },
           take: 10,
           include: {
             user: {
@@ -191,12 +209,12 @@ export const leadsService = {
     // Recalculate score if relevant fields changed
     let score: number | undefined;
     if (
-      'category' in data ||
-      'city' in data ||
-      'email' in data ||
-      'phone' in data ||
-      'hasWebsite' in data ||
-      'lighthouseScore' in data
+      "category" in data ||
+      "city" in data ||
+      "email" in data ||
+      "phone" in data ||
+      "hasWebsite" in data ||
+      "lighthouseScore" in data
     ) {
       const existingLead = await prisma.lead.findUnique({ where: { id } });
       if (existingLead) {
@@ -230,7 +248,7 @@ export const leadsService = {
         tags: lead.tags.map((t) => t.tag),
       };
     } catch (error) {
-      if ((error as any).code === 'P2025') {
+      if ((error as any).code === "P2025") {
         return null;
       }
       throw error;
@@ -242,14 +260,19 @@ export const leadsService = {
       await prisma.lead.delete({ where: { id } });
       return true;
     } catch (error) {
-      if ((error as any).code === 'P2025') {
+      if ((error as any).code === "P2025") {
         return false;
       }
       throw error;
     }
   },
 
-  async changeStage(id: string, stage: LeadStage, userId: string, notes?: string) {
+  async changeStage(
+    id: string,
+    stage: LeadStage,
+    userId: string,
+    notes?: string,
+  ) {
     const lead = await prisma.lead.findUnique({ where: { id } });
     if (!lead) return null;
 
@@ -274,7 +297,7 @@ export const leadsService = {
       }),
       prisma.activity.create({
         data: {
-          type: 'NOTE',
+          type: "NOTE",
           title: `Stage changed from ${previousStage} to ${stage}`,
           description: notes,
           leadId: id,
@@ -297,15 +320,15 @@ export const leadsService = {
     });
     if (!lead) return null;
 
-    const previousAssignee = lead.assignedTo?.name || 'Unassigned';
+    const previousAssignee = lead.assignedTo?.name || "Unassigned";
 
-    let newAssigneeName = 'Unassigned';
+    let newAssigneeName = "Unassigned";
     if (assignedToId) {
       const newAssignee = await prisma.user.findUnique({
         where: { id: assignedToId },
         select: { name: true },
       });
-      newAssigneeName = newAssignee?.name || 'Unknown';
+      newAssigneeName = newAssignee?.name || "Unknown";
     }
 
     const [updatedLead] = await prisma.$transaction([
@@ -323,7 +346,7 @@ export const leadsService = {
       }),
       prisma.activity.create({
         data: {
-          type: 'NOTE',
+          type: "NOTE",
           title: `Assigned from ${previousAssignee} to ${newAssigneeName}`,
           leadId: id,
           userId,
@@ -347,7 +370,7 @@ export const leadsService = {
     // Create activities for all leads
     await prisma.activity.createMany({
       data: leadIds.map((leadId) => ({
-        type: 'NOTE' as const,
+        type: "NOTE" as const,
         title: `Stage changed to ${stage} (bulk update)`,
         leadId,
         userId,
@@ -370,7 +393,7 @@ export const leadsService = {
 
       return this.getById(id);
     } catch (error) {
-      if ((error as any).code === 'P2025') {
+      if ((error as any).code === "P2025") {
         return null;
       }
       throw error;
@@ -387,7 +410,7 @@ export const leadsService = {
 
       return this.getById(id);
     } catch (error) {
-      if ((error as any).code === 'P2025') {
+      if ((error as any).code === "P2025") {
         return null;
       }
       throw error;
@@ -396,16 +419,18 @@ export const leadsService = {
 };
 
 // Lead scoring function
-function calculateLeadScore(lead: Partial<{
-  category: LeadCategory;
-  city: string;
-  state: string;
-  email: string;
-  phone: string;
-  hasWebsite: boolean;
-  lighthouseScore: number;
-  source: LeadSource;
-}>): number {
+function calculateLeadScore(
+  lead: Partial<{
+    category: LeadCategory;
+    city: string;
+    state: string;
+    email: string;
+    phone: string;
+    hasWebsite: boolean;
+    lighthouseScore: number;
+    source: LeadSource;
+  }>,
+): number {
   let score = 0;
 
   // Category scoring (25-30 points)
@@ -423,11 +448,22 @@ function calculateLeadScore(lead: Partial<{
     REAL_ESTATE: 16,
     OTHER: 10,
   };
-  score += categoryScores[lead.category || 'OTHER'] || 10;
+  score += categoryScores[lead.category || "OTHER"] || 10;
 
   // Priority city scoring (15-20 points)
-  const priorityCities = ['bangalore', 'bengaluru', 'hyderabad', 'mumbai', 'delhi', 'pune', 'chennai'];
-  if (lead.city && priorityCities.some((c) => lead.city!.toLowerCase().includes(c))) {
+  const priorityCities = [
+    "bangalore",
+    "bengaluru",
+    "hyderabad",
+    "mumbai",
+    "delhi",
+    "pune",
+    "chennai",
+  ];
+  if (
+    lead.city &&
+    priorityCities.some((c) => lead.city!.toLowerCase().includes(c))
+  ) {
     score += 20;
   } else if (lead.city) {
     score += 10;
@@ -445,7 +481,7 @@ function calculateLeadScore(lead: Partial<{
   }
 
   // Source scoring (10 points)
-  if (lead.source === 'WEBSITE_CONTACT') {
+  if (lead.source === "WEBSITE_CONTACT") {
     score += 10; // Inbound lead
   }
 

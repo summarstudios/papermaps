@@ -1,23 +1,24 @@
-import Fastify from 'fastify';
-import cors from '@fastify/cors';
-import jwt from '@fastify/jwt';
-import rateLimit from '@fastify/rate-limit';
-import { authRoutes } from './modules/auth/auth.routes.js';
-import { leadsRoutes } from './modules/leads/leads.routes.js';
-import { activitiesRoutes } from './modules/activities/activities.routes.js';
-import { tagsRoutes } from './modules/tags/tags.routes.js';
-import { scrapingRoutes } from './modules/scraping/scraping.routes.js';
-import { dashboardRoutes } from './modules/dashboard/dashboard.routes.js';
-import { regionsRoutes } from './modules/scraping/regions.routes.js';
-import { contactRoutes } from './modules/contact/contact.routes.js';
-import { config } from './config.js';
-import { scrapeQueue, worker } from './jobs/queue.js';
+import Fastify from "fastify";
+import cors from "@fastify/cors";
+import jwt from "@fastify/jwt";
+import rateLimit from "@fastify/rate-limit";
+import { authRoutes } from "./modules/auth/auth.routes.js";
+import { leadsRoutes } from "./modules/leads/leads.routes.js";
+import { activitiesRoutes } from "./modules/activities/activities.routes.js";
+import { tagsRoutes } from "./modules/tags/tags.routes.js";
+import { scrapingRoutes } from "./modules/scraping/scraping.routes.js";
+import { dashboardRoutes } from "./modules/dashboard/dashboard.routes.js";
+import { regionsRoutes } from "./modules/scraping/regions.routes.js";
+import { contactRoutes } from "./modules/contact/contact.routes.js";
+import { prospectsRoutes } from "./modules/prospects/prospects.routes.js";
+import { config } from "./config.js";
+import { scrapeQueue, worker } from "./jobs/queue.js";
 
 // Only use pino-pretty in dev if available, otherwise use standard JSON logging
 // In production, always use JSON logging for better log aggregation
 const loggerTransport = config.isDev
   ? {
-      target: 'pino-pretty',
+      target: "pino-pretty",
       options: { colorize: true },
     }
   : undefined;
@@ -42,26 +43,26 @@ async function main() {
 
   await fastify.register(rateLimit, {
     max: 100,
-    timeWindow: '1 minute',
+    timeWindow: "1 minute",
   });
 
   // Decorate with authenticate method
-  fastify.decorate('authenticate', async function (request: any, reply: any) {
+  fastify.decorate("authenticate", async function (request: any, reply: any) {
     try {
       await request.jwtVerify();
     } catch (err) {
-      reply.status(401).send({ error: 'Unauthorized' });
+      reply.status(401).send({ error: "Unauthorized" });
     }
   });
 
   // Health check
-  fastify.get('/health', async () => {
+  fastify.get("/health", async () => {
     let database = false;
     let redis = false;
 
     // Check database
     try {
-      const { prisma } = await import('./lib/prisma.js');
+      const { prisma } = await import("./lib/prisma.js");
       await prisma.$queryRaw`SELECT 1`;
       database = true;
     } catch {
@@ -72,7 +73,7 @@ async function main() {
     redis = !!config.redisUrl;
 
     return {
-      status: 'ok',
+      status: "ok",
       timestamp: new Date().toISOString(),
       database,
       redis,
@@ -80,25 +81,31 @@ async function main() {
   });
 
   // Register routes
-  await fastify.register(authRoutes, { prefix: '/api/auth' });
-  await fastify.register(leadsRoutes, { prefix: '/api/leads' });
-  await fastify.register(activitiesRoutes, { prefix: '/api/activities' });
-  await fastify.register(tagsRoutes, { prefix: '/api/tags' });
-  await fastify.register(scrapingRoutes, { prefix: '/api/scraping' });
-  await fastify.register(regionsRoutes, { prefix: '/api/regions' });
-  await fastify.register(dashboardRoutes, { prefix: '/api/dashboard' });
-  await fastify.register(contactRoutes, { prefix: '/api/contact' });
+  await fastify.register(authRoutes, { prefix: "/api/auth" });
+  await fastify.register(leadsRoutes, { prefix: "/api/leads" });
+  await fastify.register(activitiesRoutes, { prefix: "/api/activities" });
+  await fastify.register(tagsRoutes, { prefix: "/api/tags" });
+  await fastify.register(scrapingRoutes, { prefix: "/api/scraping" });
+  await fastify.register(regionsRoutes, { prefix: "/api/regions" });
+  await fastify.register(dashboardRoutes, { prefix: "/api/dashboard" });
+  await fastify.register(contactRoutes, { prefix: "/api/contact" });
+  await fastify.register(prospectsRoutes, { prefix: "/api/prospects" });
 
   // Start server
   try {
-    await fastify.listen({ port: config.port, host: '0.0.0.0' });
-    console.log(`Server running at http://localhost:${config.port}`);
+    await fastify.listen({ port: config.port, host: "0.0.0.0" });
+    console.log(`🚀 Server running on port ${config.port}`);
+    if (config.isDev) {
+      console.log(`   Local: http://localhost:${config.port}`);
+    }
 
     // Log queue/worker status
     if (scrapeQueue && worker) {
-      console.log('Scrape queue and worker initialized (Redis connected)');
+      console.log("Scrape queue and worker initialized (Redis connected)");
     } else {
-      console.warn('WARNING: Scrape queue not available - Redis not configured. Google Maps/Google Search scraping will not work.');
+      console.warn(
+        "WARNING: Scrape queue not available - Redis not configured. Google Maps/Google Search scraping will not work.",
+      );
     }
   } catch (err) {
     fastify.log.error(err);
@@ -109,13 +116,13 @@ async function main() {
 main();
 
 // Type augmentation for Fastify
-declare module 'fastify' {
+declare module "fastify" {
   interface FastifyInstance {
     authenticate: (request: any, reply: any) => Promise<void>;
   }
 }
 
-declare module '@fastify/jwt' {
+declare module "@fastify/jwt" {
   interface FastifyJWT {
     payload: { userId: string; email: string; role: string };
     user: { userId: string; email: string; role: string };

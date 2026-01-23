@@ -74,7 +74,10 @@ export default function ContactPage() {
         <div className="absolute inset-0 grid-pattern opacity-30" />
 
         {/* Background visuals */}
-        <GeometricShapes variant="corner" className="top-20 right-0 opacity-40" />
+        <GeometricShapes
+          variant="corner"
+          className="top-20 right-0 opacity-40"
+        />
         <GlowOrb
           className="top-0 left-1/4"
           color="var(--accent)"
@@ -96,11 +99,11 @@ export default function ContactPage() {
             transition={{ duration: 0.6, ease: [0.25, 1, 0.5, 1] }}
           >
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-              Let's Talk
+              Let&apos;s Talk
             </h1>
             <p className="text-xl text-[var(--gray-400)] max-w-2xl leading-relaxed">
-              Have a project in mind? Tell us about it. We'll respond within 24
-              hours.
+              Have a project in mind? Tell us about it. We&apos;ll respond
+              within 24 hours.
             </p>
           </motion.div>
         </div>
@@ -130,7 +133,10 @@ export default function ContactPage() {
                     Thanks for reaching out. We'll get back to you within 24
                     hours.
                   </p>
-                  <Button onClick={() => setIsSubmitted(false)} variant="secondary">
+                  <Button
+                    onClick={() => setIsSubmitted(false)}
+                    variant="secondary"
+                  >
                     Send Another Message
                   </Button>
                 </div>

@@ -1,8 +1,20 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useRef } from 'react';
-import { toast } from 'sonner';
-import { apiClient } from '@/lib/api-client';
+import { useEffect, useState, useRef } from "react";
+import { toast } from "sonner";
+import { apiClient } from "@/lib/api-client";
+
+interface JobProgress {
+  phase: "discovery" | "qualification" | "enriching" | "saving" | "finalizing";
+  location?: string;
+  currentBusiness?: string;
+  discovered?: number;
+  qualified?: number;
+  created?: number;
+  duplicates?: number;
+  skipped?: number;
+  total?: number;
+}
 
 interface ScrapeJob {
   id: string;
@@ -14,20 +26,13 @@ interface ScrapeJob {
   leadsFound: number;
   leadsCreated: number;
   leadsDuplicate: number;
+  leadsSkipped: number;
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
   region: { id: string; name: string; cities: string[] } | null;
   createdBy: { id: string; name: string };
-}
-
-interface Region {
-  id: string;
-  name: string;
-  cities: string[];
-  state: string | null;
-  isActive: boolean;
-  _count: { scrapeJobs: number };
+  progress?: JobProgress | null;
 }
 
 interface ScrapingStats {
@@ -40,70 +45,134 @@ interface ScrapingStats {
   last24h: { jobs: number; leadsCreated: number };
 }
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  PENDING: { bg: 'bg-yellow-500/10', text: 'text-yellow-400' },
-  RUNNING: { bg: 'bg-blue-500/10', text: 'text-blue-400' },
-  COMPLETED: { bg: 'bg-green-500/10', text: 'text-green-400' },
-  FAILED: { bg: 'bg-red-500/10', text: 'text-red-400' },
-  CANCELLED: { bg: 'bg-gray-500/10', text: 'text-gray-400' },
-};
+const BUSINESS_TYPES = [
+  // Service businesses (B2C)
+  { value: "clinic", label: "Clinics", icon: "🏥", category: "CLINIC" },
+  { value: "dental", label: "Dental", icon: "🦷", category: "CLINIC" },
+  { value: "salon", label: "Salons & Spas", icon: "💇", category: "SALON" },
+  { value: "gym", label: "Gyms & Fitness", icon: "💪", category: "GYM" },
+
+  // Hospitality
+  { value: "hotel", label: "Hotels & Resorts", icon: "🏨", category: "HOTEL" },
+  {
+    value: "restaurant",
+    label: "Restaurants",
+    icon: "🍽",
+    category: "RESTAURANT",
+  },
+
+  // Industrial / B2B (high value)
+  {
+    value: "manufacturer",
+    label: "Manufacturers",
+    icon: "🏭",
+    category: "STARTUP",
+  },
+  { value: "exporter", label: "Exporters", icon: "📦", category: "ECOMMERCE" },
+  { value: "warehouse", label: "Warehouses", icon: "🏢", category: "RETAIL" },
+  {
+    value: "engineering",
+    label: "Engineering Firms",
+    icon: "⚙️",
+    category: "AGENCY",
+  },
+
+  // Professional services
+  {
+    value: "coaching",
+    label: "Coaching & Training",
+    icon: "📚",
+    category: "EDUCATION",
+  },
+  {
+    value: "retail",
+    label: "Retail & Showrooms",
+    icon: "🛍",
+    category: "RETAIL",
+  },
+
+  // Real Estate
+  {
+    value: "real_estate",
+    label: "Real Estate",
+    icon: "🏠",
+    category: "REAL_ESTATE",
+  },
+
+  // Startups & Tech
+  { value: "startup", label: "Startups", icon: "🚀", category: "STARTUP" },
+  {
+    value: "agency",
+    label: "Digital Agencies",
+    icon: "💼",
+    category: "AGENCY",
+  },
+
+  // Other - custom input
+  { value: "__other__", label: "Other", icon: "✨", category: "OTHER" },
+];
+
+// Only cities with comprehensive zone data
+const CITIES = ["Bangalore", "Hyderabad", "Chennai", "Mysore"];
 
 const CATEGORIES = [
-  { value: 'STARTUP', label: 'Startup' },
-  { value: 'RESTAURANT', label: 'Restaurant' },
-  { value: 'HOTEL', label: 'Hotel' },
-  { value: 'ECOMMERCE', label: 'E-commerce' },
-  { value: 'SALON', label: 'Salon' },
-  { value: 'CLINIC', label: 'Clinic' },
-  { value: 'GYM', label: 'Gym' },
-  { value: 'RETAIL', label: 'Retail' },
-  { value: 'EDUCATION', label: 'Education' },
-  { value: 'REAL_ESTATE', label: 'Real Estate' },
-  { value: 'AGENCY', label: 'Agency' },
-  { value: 'OTHER', label: 'Other' },
+  { value: "RESTAURANT", label: "Restaurant" },
+  { value: "HOTEL", label: "Hotel" },
+  { value: "SALON", label: "Salon" },
+  { value: "CLINIC", label: "Clinic" },
+  { value: "GYM", label: "Gym" },
+  { value: "RETAIL", label: "Retail" },
+  { value: "EDUCATION", label: "Education" },
+  { value: "STARTUP", label: "Startup" },
+  { value: "ECOMMERCE", label: "E-commerce" },
+  { value: "REAL_ESTATE", label: "Real Estate" },
+  { value: "AGENCY", label: "Agency" },
+  { value: "OTHER", label: "Other" },
 ];
 
 export default function ScrapingPage() {
   const [jobs, setJobs] = useState<ScrapeJob[]>([]);
-  const [regions, setRegions] = useState<Region[]>([]);
   const [stats, setStats] = useState<ScrapingStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNewJobModal, setShowNewJobModal] = useState(false);
   const [newJob, setNewJob] = useState({
-    type: 'GOOGLE_MAPS',
-    query: '',
-    location: '',
-    category: '',
-    regionId: '',
+    type: "DISCOVERY_PIPELINE",
+    query: "",
+    location: "",
+    category: "",
     maxResults: 25,
   });
   const [creating, setCreating] = useState(false);
+  const [citySearch, setCitySearch] = useState("");
+  const [isCustomQuery, setIsCustomQuery] = useState(false);
+  const [customQuery, setCustomQuery] = useState("");
+  const [showCityDropdown, setShowCityDropdown] = useState(false);
+  const cityInputRef = useRef<HTMLInputElement>(null);
+  const cityDropdownRef = useRef<HTMLDivElement>(null);
   const previousJobsRef = useRef<Map<string, string>>(new Map());
 
   const fetchData = async () => {
     try {
-      const [jobsData, regionsData, statsData] = await Promise.all([
+      const [jobsData, statsData] = await Promise.all([
         apiClient.getScrapeJobs({ limit: 50 }),
-        apiClient.getRegions(),
         apiClient.getScrapingStats(),
       ]);
 
-      // Check for status changes and show notifications
       const newJobs = jobsData.data as ScrapeJob[];
       newJobs.forEach((job) => {
         const previousStatus = previousJobsRef.current.get(job.id);
         if (previousStatus && previousStatus !== job.status) {
-          if (job.status === 'COMPLETED') {
+          if (job.status === "COMPLETED") {
             toast.success(`Scrape completed: ${job.query}`, {
               description: `Found ${job.leadsFound} leads, created ${job.leadsCreated} new leads.`,
             });
-          } else if (job.status === 'FAILED') {
+          } else if (job.status === "FAILED") {
             toast.error(`Scrape failed: ${job.query}`, {
-              description: 'Check the job details for more information.',
+              description: "Check the job details for more information.",
             });
-          } else if (job.status === 'RUNNING' && previousStatus === 'PENDING') {
+          } else if (job.status === "RUNNING" && previousStatus === "PENDING") {
             toast.info(`Scrape started: ${job.query}`, {
-              description: 'Job is now running...',
+              description: "Job is now running...",
             });
           }
         }
@@ -111,66 +180,96 @@ export default function ScrapingPage() {
       });
 
       setJobs(newJobs);
-      setRegions(regionsData);
       setStats(statsData);
     } catch (error) {
-      console.error('Failed to fetch data:', error);
+      console.error("Failed to fetch data:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Use a ref to track if there are active jobs, avoiding useEffect dependency issues
   const hasActiveJobsRef = useRef(false);
 
-  // Update the ref whenever jobs change
   useEffect(() => {
-    hasActiveJobsRef.current = jobs.some((j) => j.status === 'RUNNING' || j.status === 'PENDING');
+    hasActiveJobsRef.current = jobs.some(
+      (j) => j.status === "RUNNING" || j.status === "PENDING",
+    );
   }, [jobs]);
 
-  // Initial fetch and polling setup - runs only once on mount
   useEffect(() => {
     fetchData();
-    // Poll for updates every 10 seconds if there are running jobs
     const interval = setInterval(() => {
       if (hasActiveJobsRef.current) {
         fetchData();
       }
-    }, 10000);
+    }, 5000);
     return () => clearInterval(interval);
-  }, []); // Empty dependency array - only run on mount
+  }, []);
+
+  // Close city dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const isInsideInput = cityInputRef.current?.contains(target);
+      const isInsideDropdown = cityDropdownRef.current?.contains(target);
+
+      if (!isInsideInput && !isInsideDropdown) {
+        setShowCityDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleCreateJob = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newJob.query) return;
+
+    // Determine the actual query to use
+    const actualQuery = isCustomQuery ? customQuery.trim() : newJob.query;
+
+    if (!actualQuery) {
+      toast.error(
+        isCustomQuery
+          ? "Please enter a business type"
+          : "Please select a business type",
+      );
+      return;
+    }
+    if (!newJob.location) {
+      toast.error("Please select a city");
+      return;
+    }
 
     setCreating(true);
     try {
       await apiClient.createScrapeJob({
         type: newJob.type,
-        query: newJob.query,
-        location: newJob.location || undefined,
+        query: actualQuery,
+        location: newJob.location,
         category: newJob.category || undefined,
-        regionId: newJob.regionId || undefined,
         maxResults: newJob.maxResults,
       });
       setShowNewJobModal(false);
       setNewJob({
-        type: 'GOOGLE_MAPS',
-        query: '',
-        location: '',
-        category: '',
-        regionId: '',
+        type: "DISCOVERY_PIPELINE",
+        query: "",
+        location: "",
+        category: "",
         maxResults: 25,
       });
-      toast.success('Scrape job started', {
-        description: `Searching for "${newJob.query}" - you'll be notified when it completes.`,
+      setCitySearch("");
+      setShowCityDropdown(false);
+      setIsCustomQuery(false);
+      setCustomQuery("");
+      toast.success("Discovery started", {
+        description: `Scanning ${newJob.location} for ${actualQuery}...`,
       });
       fetchData();
     } catch (error) {
-      console.error('Failed to create job:', error);
-      toast.error('Failed to start scrape job', {
-        description: error instanceof Error ? error.message : 'Please try again.',
+      console.error("Failed to create job:", error);
+      toast.error("Failed to start discovery", {
+        description:
+          error instanceof Error ? error.message : "Please try again.",
       });
     } finally {
       setCreating(false);
@@ -180,20 +279,22 @@ export default function ScrapingPage() {
   const handleCancelJob = async (jobId: string) => {
     try {
       await apiClient.cancelScrapeJob(jobId);
-      toast.info('Job cancelled');
+      toast.info("Job cancelled");
       fetchData();
     } catch (error) {
-      console.error('Failed to cancel job:', error);
-      toast.error('Failed to cancel job', {
-        description: error instanceof Error ? error.message : 'Please try again.',
-      });
+      console.error("Failed to cancel job:", error);
     }
   };
+
+  const estimatedCost = (newJob.maxResults * 0.05).toFixed(2);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-accent border-t-transparent" />
+        <div className="relative">
+          <div className="w-12 h-12 border-2 border-emerald-500/20 rounded-full" />
+          <div className="absolute inset-0 w-12 h-12 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        </div>
       </div>
     );
   }
@@ -203,265 +304,417 @@ export default function ScrapingPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Scraping</h1>
-          <p className="text-gray-400 mt-1">Find new leads automatically</p>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Lead Discovery
+          </h1>
+          <p className="text-sm text-zinc-500 mt-1">
+            Find businesses that need your services
+          </p>
         </div>
         <button
           onClick={() => setShowNewJobModal(true)}
-          className="px-4 py-2 bg-accent text-background font-medium rounded-lg hover:bg-accent-light transition-colors"
+          className="group flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-900 font-medium rounded-lg transition-all duration-200 hover:shadow-lg hover:shadow-emerald-500/25"
         >
-          Start New Scrape
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 4v16m8-8H4"
+            />
+          </svg>
+          New Discovery
         </button>
       </div>
 
-      {/* Stats */}
+      {/* Stats Grid */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard
-            label="Total Jobs"
-            value={stats.total}
-          />
-          <StatCard
-            label="Running"
-            value={stats.running}
-            color="blue"
-            pulse={stats.running > 0}
-          />
-          <StatCard
-            label="Leads Created"
-            value={stats.leadsFromScraping}
-            color="green"
-          />
-          <StatCard
-            label="Last 24h"
-            value={stats.last24h.leadsCreated}
-            sublabel={`from ${stats.last24h.jobs} jobs`}
-          />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-zinc-800/50 backdrop-blur border border-zinc-700/50 rounded-xl p-5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                Total Scans
+              </span>
+              <div className="w-8 h-8 bg-zinc-700/50 rounded-lg flex items-center justify-center">
+                <svg
+                  className="w-4 h-4 text-zinc-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
+              </div>
+            </div>
+            <p className="text-3xl font-semibold text-white mt-3">
+              {stats.total}
+            </p>
+          </div>
+
+          <div className="bg-zinc-800/50 backdrop-blur border border-zinc-700/50 rounded-xl p-5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                Active
+              </span>
+              {stats.running > 0 && (
+                <span className="flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-blue-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+                </span>
+              )}
+            </div>
+            <p className="text-3xl font-semibold text-blue-400 mt-3">
+              {stats.running}
+            </p>
+          </div>
+
+          <div className="bg-zinc-800/50 backdrop-blur border border-zinc-700/50 rounded-xl p-5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                Leads Found
+              </span>
+              <div className="w-8 h-8 bg-emerald-500/10 rounded-lg flex items-center justify-center">
+                <svg
+                  className="w-4 h-4 text-emerald-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                </svg>
+              </div>
+            </div>
+            <p className="text-3xl font-semibold text-emerald-400 mt-3">
+              {stats.leadsFromScraping}
+            </p>
+          </div>
+
+          <div className="bg-zinc-800/50 backdrop-blur border border-zinc-700/50 rounded-xl p-5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                Last 24h
+              </span>
+            </div>
+            <p className="text-3xl font-semibold text-white mt-3">
+              {stats.last24h.leadsCreated}
+            </p>
+            <p className="text-xs text-zinc-500 mt-1">
+              {stats.last24h.jobs} jobs completed
+            </p>
+          </div>
         </div>
       )}
 
-      {/* Regions */}
-      <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Scraping Regions</h2>
-          <span className="text-sm text-gray-400">{regions.length} regions configured</span>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {regions.map((region) => (
-            <div
-              key={region.id}
-              className={`p-4 rounded-lg border ${
-                region.isActive
-                  ? 'bg-gray-700/50 border-gray-600'
-                  : 'bg-gray-800/50 border-gray-700 opacity-50'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-medium text-white text-sm">{region.name}</h3>
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    region.isActive ? 'bg-green-500' : 'bg-gray-500'
-                  }`}
-                />
-              </div>
-              <p className="text-xs text-gray-400">
-                {region.cities.slice(0, 3).join(', ')}
-                {region.cities.length > 3 && ` +${region.cities.length - 3} more`}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                {region._count.scrapeJobs} jobs
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Jobs List */}
-      <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-        <div className="p-4 border-b border-gray-700">
-          <h2 className="text-lg font-semibold">Recent Jobs</h2>
+      <div className="bg-zinc-800/30 backdrop-blur border border-zinc-700/50 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-zinc-700/50 flex items-center justify-between">
+          <h2 className="font-medium text-white">Recent Discoveries</h2>
+          <span className="text-xs text-zinc-500">{jobs.length} jobs</span>
         </div>
-        <div className="divide-y divide-gray-700">
-          {jobs.length === 0 ? (
-            <div className="p-8 text-center text-gray-400">
-              No scrape jobs yet. Start your first scrape!
+
+        {jobs.length === 0 ? (
+          <div className="p-12 text-center">
+            <div className="w-16 h-16 bg-zinc-700/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg
+                className="w-8 h-8 text-zinc-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
             </div>
-          ) : (
-            jobs.map((job) => (
-              <div key={job.id} className="p-4 hover:bg-gray-700/50 transition-colors">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[job.status].bg} ${STATUS_COLORS[job.status].text}`}
-                      >
-                        {job.status === 'RUNNING' && (
-                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse mr-1.5" />
-                        )}
-                        {job.status}
-                      </span>
-                      <span className="text-sm text-gray-400">{job.type.replace('_', ' ')}</span>
-                    </div>
-                    <p className="font-medium text-white mt-1">{job.query}</p>
-                    <p className="text-sm text-gray-400 mt-1">
-                      {job.region?.name || job.location || 'No location'}
-                      {job.category && ` • ${job.category}`}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    {job.status === 'COMPLETED' && (
-                      <div className="text-sm">
-                        <span className="text-green-400">{job.leadsCreated}</span>
-                        <span className="text-gray-400"> / {job.leadsFound} leads</span>
-                        {job.leadsDuplicate > 0 && (
-                          <span className="text-gray-500 text-xs block">
-                            {job.leadsDuplicate} duplicates
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    {(job.status === 'PENDING' || job.status === 'RUNNING') && (
-                      <button
-                        onClick={() => handleCancelJob(job.id)}
-                        className="text-sm text-red-400 hover:text-red-300 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                    <p className="text-xs text-gray-500 mt-1">
-                      {new Date(job.createdAt).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+            <p className="text-zinc-400 font-medium">No discoveries yet</p>
+            <p className="text-sm text-zinc-600 mt-1">
+              Start your first scan to find leads
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-zinc-700/30">
+            {jobs.map((job) => (
+              <JobCard key={job.id} job={job} onCancel={handleCancelJob} />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* New Job Modal */}
       {showNewJobModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl p-6 w-full max-w-lg border border-gray-700">
-            <h2 className="text-lg font-semibold mb-4">Start New Scrape Job</h2>
-            <form onSubmit={handleCreateJob} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Scrape Type
-                </label>
-                <select
-                  value={newJob.type}
-                  onChange={(e) => setNewJob({ ...newJob, type: e.target.value })}
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-accent"
-                >
-                  <option value="GOOGLE_MAPS">Google Maps</option>
-                  <option value="GOOGLE_SEARCH">Google Search</option>
-                  <option value="PERPLEXITY">Perplexity AI</option>
-                </select>
-              </div>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div
+            className="bg-zinc-900 border border-zinc-700/50 rounded-2xl w-full max-w-xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-5 border-b border-zinc-700/50">
+              <h2 className="text-lg font-semibold text-white">
+                Start New Discovery
+              </h2>
+              <p className="text-sm text-zinc-500 mt-1">
+                Find businesses that need web services
+              </p>
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Search Query
-                </label>
-                <input
-                  type="text"
-                  value={newJob.query}
-                  onChange={(e) => setNewJob({ ...newJob, query: e.target.value })}
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-accent"
-                  placeholder="e.g., restaurants without website"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleCreateJob}>
+              <div className="p-6 space-y-6">
+                {/* Business Type Selection */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Region (optional)
+                  <label className="block text-sm font-medium text-zinc-300 mb-3">
+                    What are you looking for?
                   </label>
-                  <select
-                    value={newJob.regionId}
-                    onChange={(e) => setNewJob({ ...newJob, regionId: e.target.value, location: '' })}
-                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-accent"
-                  >
-                    <option value="">Select region</option>
-                    {regions.filter((r) => r.isActive).map((region) => (
-                      <option key={region.id} value={region.id}>
-                        {region.name}
-                      </option>
+                  <div className="grid grid-cols-4 gap-2">
+                    {BUSINESS_TYPES.map((type) => (
+                      <button
+                        key={type.value}
+                        type="button"
+                        onClick={() => {
+                          if (type.value === "__other__") {
+                            setIsCustomQuery(true);
+                            setNewJob({
+                              ...newJob,
+                              query: "",
+                              category: type.category,
+                            });
+                          } else {
+                            setIsCustomQuery(false);
+                            setCustomQuery("");
+                            setNewJob({
+                              ...newJob,
+                              query: type.value,
+                              category: type.category,
+                            });
+                          }
+                        }}
+                        className={`p-3 rounded-xl border transition-all duration-200 text-center ${
+                          (type.value === "__other__" && isCustomQuery) ||
+                          (type.value !== "__other__" &&
+                            newJob.query === type.value &&
+                            !isCustomQuery)
+                            ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400"
+                            : "bg-zinc-800/50 border-zinc-700/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-300"
+                        }`}
+                      >
+                        <span className="text-xl block mb-1">{type.icon}</span>
+                        <span className="text-xs font-medium">
+                          {type.label}
+                        </span>
+                      </button>
                     ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Or Location
-                  </label>
-                  <input
-                    type="text"
-                    value={newJob.location}
-                    onChange={(e) => setNewJob({ ...newJob, location: e.target.value, regionId: '' })}
-                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-accent"
-                    placeholder="e.g., Bangalore"
-                    disabled={!!newJob.regionId}
-                  />
-                </div>
-              </div>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Category (optional)
+                  {/* Custom Query Input - shown when "Other" is selected */}
+                  {isCustomQuery && (
+                    <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <label className="block text-sm font-medium text-zinc-400 mb-2">
+                        Enter custom business type
+                      </label>
+                      <input
+                        type="text"
+                        value={customQuery}
+                        onChange={(e) => setCustomQuery(e.target.value)}
+                        placeholder="e.g., Pet shops, Jewellery stores, Furniture showrooms..."
+                        className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700/50 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/25 transition-all"
+                        autoFocus
+                      />
+                      <p className="text-xs text-zinc-500 mt-2">
+                        Tip: Be specific for better results. Example: "pet
+                        grooming" instead of just "pets"
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* City Selection - Searchable */}
+                <div className="relative">
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">
+                    City
                   </label>
-                  <select
-                    value={newJob.category}
-                    onChange={(e) => setNewJob({ ...newJob, category: e.target.value })}
-                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-accent"
-                  >
-                    <option value="">Any category</option>
-                    {CATEGORIES.map((cat) => (
-                      <option key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </option>
+                  <div className="relative">
+                    <input
+                      ref={cityInputRef}
+                      type="text"
+                      value={citySearch}
+                      onChange={(e) => {
+                        setCitySearch(e.target.value);
+                        setShowCityDropdown(true);
+                        if (!e.target.value) {
+                          setNewJob({ ...newJob, location: "" });
+                        }
+                      }}
+                      onFocus={() => setShowCityDropdown(true)}
+                      placeholder={newJob.location || "Search for a city..."}
+                      className={`w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700/50 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/25 transition-all ${newJob.location && !citySearch ? "text-white" : ""}`}
+                    />
+                    {newJob.location && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewJob({ ...newJob, location: "" });
+                          setCitySearch("");
+                          cityInputRef.current?.focus();
+                        }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                  {showCityDropdown && (
+                    <div
+                      ref={cityDropdownRef}
+                      className="absolute z-50 w-full mt-1 bg-zinc-800 border border-zinc-700 rounded-xl shadow-xl max-h-48 overflow-y-auto"
+                    >
+                      {CITIES.filter((city) =>
+                        city.toLowerCase().includes(citySearch.toLowerCase()),
+                      ).length === 0 ? (
+                        <div className="px-4 py-3 text-sm text-zinc-500">
+                          No cities found
+                        </div>
+                      ) : (
+                        CITIES.filter((city) =>
+                          city.toLowerCase().includes(citySearch.toLowerCase()),
+                        ).map((city) => (
+                          <button
+                            key={city}
+                            type="button"
+                            onClick={() => {
+                              setNewJob({ ...newJob, location: city });
+                              setCitySearch("");
+                              setShowCityDropdown(false);
+                            }}
+                            className={`w-full px-4 py-2.5 text-left text-sm hover:bg-zinc-700/50 transition-colors ${
+                              newJob.location === city
+                                ? "bg-emerald-500/10 text-emerald-400"
+                                : "text-zinc-300"
+                            }`}
+                          >
+                            {city}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Max Results */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">
+                    Maximum leads to find
+                  </label>
+                  <div className="flex gap-2">
+                    {[10, 25, 50, 100].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() =>
+                          setNewJob({ ...newJob, maxResults: num })
+                        }
+                        className={`flex-1 py-2.5 rounded-lg border font-medium transition-all ${
+                          newJob.maxResults === num
+                            ? "bg-zinc-700 border-zinc-600 text-white"
+                            : "bg-zinc-800/30 border-zinc-700/50 text-zinc-500 hover:border-zinc-600 hover:text-zinc-400"
+                        }`}
+                      >
+                        {num}
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Max Results
-                  </label>
-                  <select
-                    value={newJob.maxResults}
-                    onChange={(e) => setNewJob({ ...newJob, maxResults: parseInt(e.target.value) })}
-                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-accent"
-                  >
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
+
+                {/* Cost Estimate */}
+                <div className="bg-zinc-800/30 border border-zinc-700/30 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-zinc-400">Estimated cost</p>
+                      <p className="text-xs text-zinc-600 mt-0.5">
+                        Google Places API + Perplexity enrichment
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-semibold text-white">
+                        ${estimatedCost}
+                      </p>
+                      <p className="text-xs text-zinc-600">~$0.05/lead</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-gray-700/50 rounded-lg p-4">
-                <p className="text-sm text-gray-300">
-                  <strong>Note:</strong> Scraping jobs run in the background. You can close this page and check back later.
-                </p>
-              </div>
-
-              <div className="flex gap-3 pt-2">
+              <div className="px-6 py-4 border-t border-zinc-700/50 flex gap-3">
                 <button
                   type="button"
                   onClick={() => setShowNewJobModal(false)}
-                  className="flex-1 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                  className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-xl transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={creating}
-                  className="flex-1 py-2 bg-accent text-background font-medium rounded-lg hover:bg-accent-light transition-colors disabled:opacity-50"
+                  disabled={
+                    creating ||
+                    (!isCustomQuery && !newJob.query) ||
+                    (isCustomQuery && !customQuery.trim()) ||
+                    !newJob.location
+                  }
+                  className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-zinc-900 font-medium rounded-xl transition-all disabled:cursor-not-allowed"
                 >
-                  {creating ? 'Starting...' : 'Start Scraping'}
+                  {creating ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg
+                        className="w-4 h-4 animate-spin"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                        />
+                      </svg>
+                      Starting...
+                    </span>
+                  ) : (
+                    "Start Discovery"
+                  )}
                 </button>
               </div>
             </form>
@@ -472,36 +725,407 @@ export default function ScrapingPage() {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  sublabel,
-  color,
-  pulse,
+function JobCard({
+  job,
+  onCancel,
 }: {
-  label: string;
-  value: number;
-  sublabel?: string;
-  color?: 'blue' | 'green';
-  pulse?: boolean;
+  job: ScrapeJob;
+  onCancel: (id: string) => void;
 }) {
-  const colorClasses = {
-    blue: 'text-blue-400',
-    green: 'text-green-400',
+  const [liveProgress, setLiveProgress] = useState<JobProgress | null>(
+    job.progress || null,
+  );
+  const [liveJob, setLiveJob] = useState(job);
+
+  // Poll for progress updates when job is running
+  useEffect(() => {
+    if (job.status !== "RUNNING") {
+      setLiveProgress(null);
+      setLiveJob(job);
+      return;
+    }
+
+    const pollProgress = async () => {
+      try {
+        const updatedJob = await apiClient.getScrapeJob(job.id);
+        setLiveJob(updatedJob);
+        if (updatedJob.progress) {
+          setLiveProgress(updatedJob.progress);
+        }
+      } catch {
+        // Ignore errors during polling
+      }
+    };
+
+    // Poll every 2 seconds for running jobs
+    pollProgress();
+    const interval = setInterval(pollProgress, 2000);
+    return () => clearInterval(interval);
+  }, [job.id, job.status]);
+
+  const getStatusConfig = (status: string) => {
+    switch (status) {
+      case "RUNNING":
+        return {
+          bg: "bg-blue-500/10",
+          text: "text-blue-400",
+          border: "border-blue-500/20",
+        };
+      case "COMPLETED":
+        return {
+          bg: "bg-emerald-500/10",
+          text: "text-emerald-400",
+          border: "border-emerald-500/20",
+        };
+      case "FAILED":
+        return {
+          bg: "bg-red-500/10",
+          text: "text-red-400",
+          border: "border-red-500/20",
+        };
+      case "CANCELLED":
+        return {
+          bg: "bg-zinc-500/10",
+          text: "text-zinc-400",
+          border: "border-zinc-500/20",
+        };
+      default:
+        return {
+          bg: "bg-amber-500/10",
+          text: "text-amber-400",
+          border: "border-amber-500/20",
+        };
+    }
   };
 
+  const getPhaseConfig = (phase: string) => {
+    switch (phase) {
+      case "discovery":
+        return {
+          label: "Discovering businesses",
+          icon: "🔍",
+          color: "text-blue-400",
+          bgColor: "bg-blue-500",
+        };
+      case "qualification":
+        return {
+          label: "Analyzing websites",
+          icon: "📊",
+          color: "text-amber-400",
+          bgColor: "bg-amber-500",
+        };
+      case "enriching":
+        return {
+          label: "Enriching data",
+          icon: "✨",
+          color: "text-violet-400",
+          bgColor: "bg-violet-500",
+        };
+      case "saving":
+        return {
+          label: "Saving leads",
+          icon: "💾",
+          color: "text-emerald-400",
+          bgColor: "bg-emerald-500",
+        };
+      case "finalizing":
+        return {
+          label: "Finalizing",
+          icon: "🏁",
+          color: "text-emerald-400",
+          bgColor: "bg-emerald-500",
+        };
+      default:
+        return {
+          label: "Processing",
+          icon: "⏳",
+          color: "text-zinc-400",
+          bgColor: "bg-zinc-500",
+        };
+    }
+  };
+
+  const statusConfig = getStatusConfig(liveJob.status);
+  const isActive = liveJob.status === "RUNNING" || liveJob.status === "PENDING";
+  const phaseConfig = liveProgress
+    ? getPhaseConfig(liveProgress.phase)
+    : getPhaseConfig("discovery");
+
+  // Calculate progress percentage
+  const progressPercent =
+    liveProgress && liveProgress.total && liveProgress.total > 0
+      ? Math.min(
+          ((liveProgress.created || 0) +
+            (liveProgress.duplicates || 0) +
+            (liveProgress.skipped || 0)) /
+            liveProgress.total,
+          1,
+        ) * 100
+      : 0;
+
   return (
-    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-      <p className="text-sm text-gray-400">{label}</p>
-      <div className="flex items-center gap-2 mt-1">
-        {pulse && (
-          <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-        )}
-        <p className={`text-2xl font-bold ${color ? colorClasses[color] : 'text-white'}`}>
-          {value}
-        </p>
+    <div className="px-5 py-4 hover:bg-zinc-700/10 transition-colors">
+      <div className="flex items-start gap-4">
+        {/* Status Indicator */}
+        <div
+          className={`mt-1 flex-shrink-0 w-10 h-10 rounded-xl ${statusConfig.bg} ${statusConfig.border} border flex items-center justify-center`}
+        >
+          {liveJob.status === "RUNNING" ? (
+            <svg
+              className="w-5 h-5 text-blue-400 animate-spin"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="3"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              />
+            </svg>
+          ) : liveJob.status === "COMPLETED" ? (
+            <svg
+              className="w-5 h-5 text-emerald-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          ) : liveJob.status === "FAILED" ? (
+            <svg
+              className="w-5 h-5 text-red-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          ) : liveJob.status === "PENDING" ? (
+            <svg
+              className="w-5 h-5 text-amber-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          ) : (
+            <svg
+              className="w-5 h-5 text-zinc-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+              />
+            </svg>
+          )}
+        </div>
+
+        {/* Job Details */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="font-medium text-white capitalize">
+              {liveJob.query}
+            </h3>
+            <span
+              className={`px-2 py-0.5 text-xs font-medium rounded-md ${statusConfig.bg} ${statusConfig.text}`}
+            >
+              {liveJob.status}
+            </span>
+          </div>
+          <p className="text-sm text-zinc-500 mt-0.5">
+            {liveJob.location || liveJob.region?.name || "Unknown location"}
+            {liveJob.category && ` · ${liveJob.category}`}
+          </p>
+
+          {/* Enhanced Progress for running jobs */}
+          {liveJob.status === "RUNNING" && (
+            <div className="mt-3 space-y-3">
+              {/* Phase indicator with current business */}
+              <div className="flex items-center gap-3">
+                <span className="text-lg">{phaseConfig.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-sm font-medium ${phaseConfig.color}`}
+                    >
+                      {phaseConfig.label}
+                    </span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                  </div>
+                  {liveProgress?.currentBusiness && (
+                    <p className="text-xs text-zinc-500 truncate mt-0.5">
+                      Processing:{" "}
+                      <span className="text-zinc-400">
+                        {liveProgress.currentBusiness}
+                      </span>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Live stats */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                {(liveProgress?.discovered ?? liveJob.leadsFound) > 0 && (
+                  <span className="text-blue-400">
+                    <span className="font-semibold">
+                      {liveProgress?.discovered ?? liveJob.leadsFound}
+                    </span>{" "}
+                    found
+                  </span>
+                )}
+                {(liveProgress?.created ?? liveJob.leadsCreated) > 0 && (
+                  <span className="text-emerald-400">
+                    <span className="font-semibold">
+                      {liveProgress?.created ?? liveJob.leadsCreated}
+                    </span>{" "}
+                    created
+                  </span>
+                )}
+                {(liveProgress?.duplicates ?? liveJob.leadsDuplicate) > 0 && (
+                  <span className="text-zinc-500">
+                    {liveProgress?.duplicates ?? liveJob.leadsDuplicate}{" "}
+                    duplicates
+                  </span>
+                )}
+                {(liveProgress?.skipped ?? liveJob.leadsSkipped) > 0 && (
+                  <span className="text-zinc-500">
+                    {liveProgress?.skipped ?? liveJob.leadsSkipped} skipped
+                  </span>
+                )}
+                {liveProgress?.total && liveProgress.total > 0 && (
+                  <span className="text-zinc-600">
+                    of {liveProgress.total} total
+                  </span>
+                )}
+              </div>
+
+              {/* Progress bar */}
+              <div className="h-1.5 bg-zinc-700/50 rounded-full overflow-hidden">
+                {progressPercent > 0 ? (
+                  <div
+                    className={`h-full ${phaseConfig.bgColor} rounded-full transition-all duration-500 ease-out`}
+                    style={{ width: `${Math.max(progressPercent, 5)}%` }}
+                  />
+                ) : (
+                  <div
+                    className={`h-full ${phaseConfig.bgColor} rounded-full animate-pulse`}
+                    style={{ width: "30%" }}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Pending status */}
+          {liveJob.status === "PENDING" && (
+            <div className="mt-2 text-xs text-amber-400/80 flex items-center gap-1.5">
+              <svg
+                className="w-3.5 h-3.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              Waiting in queue...
+            </div>
+          )}
+
+          {/* Results for completed jobs */}
+          {liveJob.status === "COMPLETED" && (
+            <div className="flex items-center gap-4 mt-2 text-sm">
+              <span className="text-emerald-400">
+                <span className="font-semibold">{liveJob.leadsCreated}</span>{" "}
+                leads created
+              </span>
+              {liveJob.leadsDuplicate > 0 && (
+                <span className="text-zinc-500">
+                  {liveJob.leadsDuplicate} duplicates
+                </span>
+              )}
+              {liveJob.leadsSkipped > 0 && (
+                <span className="text-zinc-500">
+                  {liveJob.leadsSkipped} skipped
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Failed status */}
+          {liveJob.status === "FAILED" && (
+            <div className="mt-2 text-xs text-red-400/80 flex items-center gap-1.5">
+              <svg
+                className="w-3.5 h-3.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              Job failed - check logs for details
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex-shrink-0 flex items-center gap-3">
+          {isActive && (
+            <button
+              onClick={() => onCancel(liveJob.id)}
+              className="text-xs text-zinc-500 hover:text-red-400 transition-colors"
+            >
+              Cancel
+            </button>
+          )}
+          <span className="text-xs text-zinc-600">
+            {new Date(liveJob.createdAt).toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+        </div>
       </div>
-      {sublabel && <p className="text-xs text-gray-500 mt-1">{sublabel}</p>}
     </div>
   );
 }

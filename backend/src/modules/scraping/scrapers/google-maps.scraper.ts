@@ -139,19 +139,10 @@ export const googleMapsScraper = {
         (el) => el.textContent?.trim() || ''
       ).catch(() => undefined);
 
-      // Try to extract email if website exists
+      // Try to extract email from website and common contact pages
       let email: string | undefined;
       if (website) {
-        try {
-          const websiteResponse = await page.context().request.get(website, {
-            timeout: 10000,
-          });
-          const html = await websiteResponse.text();
-          const emails = emailExtractor.extractFromHtml(html);
-          email = emailExtractor.findBestEmail(emails);
-        } catch (error) {
-          // Failed to fetch website for email
-        }
+        email = await this.extractEmailFromWebsite(page, website);
       }
 
       return {
@@ -166,6 +157,63 @@ export const googleMapsScraper = {
       console.error('Error extracting business info:', error);
       return null;
     }
+  },
+
+  /**
+   * Extract email from a website by checking the homepage and common contact pages.
+   * Tries multiple pages to maximize chances of finding an email.
+   */
+  async extractEmailFromWebsite(page: Page, websiteUrl: string): Promise<string | undefined> {
+    // Normalize the URL
+    const baseUrl = websiteUrl.replace(/\/$/, '');
+
+    // Pages to check for contact information (in order of priority)
+    const pagesToCheck = [
+      baseUrl,                    // Homepage
+      `${baseUrl}/contact`,       // Common contact page
+      `${baseUrl}/contact-us`,    // Alternative contact page
+      `${baseUrl}/contactus`,     // No hyphen version
+      `${baseUrl}/about`,         // About page often has contact info
+      `${baseUrl}/about-us`,      // Alternative about page
+    ];
+
+    const allFoundEmails: string[] = [];
+
+    for (const pageUrl of pagesToCheck) {
+      try {
+        const response = await page.context().request.get(pageUrl, {
+          timeout: 8000,
+          failOnStatusCode: false,
+        });
+
+        // Skip if not a successful response
+        if (response.status() >= 400) {
+          continue;
+        }
+
+        const html = await response.text();
+        const emails = emailExtractor.extractFromHtml(html);
+
+        if (emails.length > 0) {
+          allFoundEmails.push(...emails);
+          // If we found a good email (info@, contact@, etc.), return immediately
+          const bestEmail = emailExtractor.findBestEmail(emails);
+          if (bestEmail && /^(info|contact|hello|enquiry|sales)@/i.test(bestEmail)) {
+            return bestEmail;
+          }
+        }
+      } catch (error) {
+        // Failed to fetch this page, continue to next
+        continue;
+      }
+    }
+
+    // Return the best email from all found emails
+    if (allFoundEmails.length > 0) {
+      return emailExtractor.findBestEmail([...new Set(allFoundEmails)]);
+    }
+
+    return undefined;
   },
 };
 

@@ -2,7 +2,9 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "npx prisma db push --skip-generate && npm run db:seed || true && npm run start"
+# Use migrate deploy for production (not db push)
+# Seed only runs once on first deployment (uses upsert, safe to re-run)
+startCommand = "npx prisma migrate deploy && npm run db:seed && npm run start"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
@@ -11,5 +13,6 @@ restartPolicyMaxRetries = 10
 [nixpacks]
 providers = ["node"]
 
+# System dependencies required for Playwright/Chromium scraping
 [nixpacks.apt]
 packages = ["chromium", "libnss3", "libatk-bridge2.0-0", "libdrm2", "libxcomposite1", "libxdamage1", "libxrandr2", "libgbm1", "libasound2"]

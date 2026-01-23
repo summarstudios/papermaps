@@ -59,12 +59,7 @@ interface SalesIntelligence {
   techStackAnalyzedAt?: string;
 }
 
-interface GeneratedEmail {
-  subject: string;
-  body: string;
-}
-
-interface Lead {
+interface Prospect {
   id: string;
   businessName: string;
   contactPerson: string | null;
@@ -74,14 +69,10 @@ interface Lead {
   address: string | null;
   city: string | null;
   state: string | null;
-  country: string;
+  locality: string | null;
   category: string;
-  stage: string;
-  priority: string;
-  score: number;
-  source: string;
-  leadType: string;
   hasWebsite: boolean;
+  score: number;
   lighthouseScore: number | null;
   lighthouseSeo: number | null;
   lighthouseAccessibility: number | null;
@@ -90,149 +81,150 @@ interface Lead {
   qualificationError: string | null;
   perplexityAnalysis: string | null;
   salesIntelligence: SalesIntelligence | null;
-  notes: string | null;
+  source: string;
+  leadType: string;
   createdAt: string;
-  updatedAt: string;
-  tags: { id: string; name: string; color: string }[];
-  activities: Activity[];
-  assignedTo: { id: string; name: string; email: string } | null;
+  scrapeJob: {
+    id: string;
+    query: string;
+    location: string | null;
+    createdAt: string;
+  } | null;
 }
 
-interface Activity {
-  id: string;
-  type: string;
-  title: string;
-  description: string | null;
-  outcome: string | null;
-  createdAt: string;
-  completedAt: string | null;
-  user: { id: string; name: string };
+interface DeepResearch {
+  email?: string;
+  phone?: string;
+  website?: string;
+  ownerName?: string;
+  decisionMakers?: Array<{
+    name: string;
+    title?: string;
+    email?: string;
+    linkedin?: string;
+  }>;
+  companySize?: string;
+  estimatedRevenue?: string;
+  foundedYear?: number;
+  industry?: string;
+  specializations?: string[];
+  painPoints?: string[];
+  webServiceNeeds?: string[];
+  recentNews?: string[];
+  competitorWebsites?: string[];
+  personalizedPitch?: string;
 }
 
-// ============================================================================
-// Constants
-// ============================================================================
-
-const STAGES = [
-  "NEW",
-  "CONTACTED",
-  "QUALIFIED",
-  "PROPOSAL",
-  "NEGOTIATION",
-  "WON",
-  "LOST",
-];
-
-const STAGE_CONFIG: Record<
-  string,
-  { bg: string; text: string; border: string }
-> = {
-  NEW: {
-    bg: "bg-blue-500",
-    text: "text-blue-400",
-    border: "border-blue-500/30",
-  },
-  CONTACTED: {
-    bg: "bg-yellow-500",
-    text: "text-yellow-400",
-    border: "border-yellow-500/30",
-  },
-  QUALIFIED: {
-    bg: "bg-purple-500",
-    text: "text-purple-400",
-    border: "border-purple-500/30",
-  },
-  PROPOSAL: {
-    bg: "bg-cyan-500",
-    text: "text-cyan-400",
-    border: "border-cyan-500/30",
-  },
-  NEGOTIATION: {
-    bg: "bg-orange-500",
-    text: "text-orange-400",
-    border: "border-orange-500/30",
-  },
-  WON: {
-    bg: "bg-green-500",
-    text: "text-green-400",
-    border: "border-green-500/30",
-  },
-  LOST: {
-    bg: "bg-red-500",
-    text: "text-red-400",
-    border: "border-red-500/30",
-  },
-};
+interface GeneratedEmail {
+  subject: string;
+  body: string;
+}
 
 // ============================================================================
 // Main Component
 // ============================================================================
 
-export default function LeadDetailPage() {
+export default function ProspectDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const [lead, setLead] = useState<Lead | null>(null);
+  const [prospect, setProspect] = useState<Prospect | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activityModal, setActivityModal] = useState(false);
-  const [newActivity, setNewActivity] = useState({
-    type: "NOTE",
-    title: "",
-    description: "",
-  });
-  const [saving, setSaving] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [researchLoading, setResearchLoading] = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
   const [lighthouseLoading, setLighthouseLoading] = useState(false);
   const [techStackLoading, setTechStackLoading] = useState(false);
-  const [salesIntelligence, setSalesIntelligence] =
-    useState<SalesIntelligence | null>(null);
+  const [deepResearch, setDeepResearch] = useState<DeepResearch | null>(null);
   const [generatedEmail, setGeneratedEmail] = useState<GeneratedEmail | null>(
     null,
   );
   const [techStack, setTechStack] = useState<TechStack | null>(null);
 
-  const fetchLead = async () => {
-    try {
-      const data = await apiClient.getLead(params.id as string);
-      setLead(data);
-      if (data.salesIntelligence) {
-        setSalesIntelligence(data.salesIntelligence);
-        if (data.salesIntelligence.techStack) {
-          setTechStack(data.salesIntelligence.techStack);
+  useEffect(() => {
+    const fetchProspect = async () => {
+      try {
+        const data = await apiClient.getProspect(params.id as string);
+        setProspect(data);
+        if (data.salesIntelligence) {
+          setDeepResearch(data.salesIntelligence);
+          if (data.salesIntelligence.techStack) {
+            setTechStack(data.salesIntelligence.techStack);
+          }
         }
+      } catch {
+        toast.error("Failed to load prospect");
+        router.push("/admin/prospects");
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      toast.error("Failed to load lead");
+    };
+    fetchProspect();
+  }, [params.id, router]);
+
+  const handlePromote = async () => {
+    if (!prospect) return;
+    setActionLoading(true);
+    try {
+      await apiClient.promoteProspect(prospect.id);
+      toast.success("Prospect promoted to lead");
       router.push("/admin/leads");
+    } catch {
+      toast.error("Failed to promote prospect");
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchLead();
-  }, [params.id]);
+  const handleNotInterested = async () => {
+    if (!prospect) return;
+    setActionLoading(true);
+    try {
+      await apiClient.markProspectNotInterested(prospect.id);
+      toast.success("Marked as not interested");
+      router.push("/admin/prospects");
+    } catch {
+      toast.error("Failed to update prospect");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!prospect) return;
+    if (!confirm("Delete this prospect? This cannot be undone.")) return;
+    setActionLoading(true);
+    try {
+      await apiClient.deleteProspect(prospect.id);
+      toast.success("Prospect deleted");
+      router.push("/admin/prospects");
+    } catch {
+      toast.error("Failed to delete prospect");
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const handleDeepResearch = async () => {
-    if (!lead) return;
+    if (!prospect) return;
     setResearchLoading(true);
     try {
-      const research = await apiClient.deepResearchProspect(lead.id);
-      setSalesIntelligence(research);
-      fetchLead();
+      const research = await apiClient.deepResearchProspect(prospect.id);
+      setDeepResearch(research);
+      const updated = await apiClient.getProspect(prospect.id);
+      setProspect(updated);
       toast.success("Deep research completed");
     } catch {
-      toast.error("Failed to research lead");
+      toast.error("Failed to research prospect");
     } finally {
       setResearchLoading(false);
     }
   };
 
   const handleGenerateEmail = async () => {
-    if (!lead) return;
+    if (!prospect) return;
     setEmailLoading(true);
     try {
-      const email = await apiClient.generateOutreachEmail(lead.id);
+      const email = await apiClient.generateOutreachEmail(prospect.id);
       setGeneratedEmail(email);
       toast.success("Email generated");
     } catch {
@@ -243,11 +235,12 @@ export default function LeadDetailPage() {
   };
 
   const handleRerunLighthouse = async () => {
-    if (!lead || !lead.website) return;
+    if (!prospect || !prospect.website) return;
     setLighthouseLoading(true);
     try {
-      const result = await apiClient.rerunLighthouse(lead.id);
-      await fetchLead();
+      const result = await apiClient.rerunLighthouse(prospect.id);
+      const updated = await apiClient.getProspect(prospect.id);
+      setProspect(updated);
 
       if (result.domainStatus === "expired") {
         toast.error(
@@ -281,11 +274,12 @@ export default function LeadDetailPage() {
   };
 
   const handleDetectTechStack = async () => {
-    if (!lead || !lead.website) return;
+    if (!prospect || !prospect.website) return;
     setTechStackLoading(true);
     try {
-      const result = await apiClient.detectTechStack(lead.id);
-      await fetchLead();
+      const result = await apiClient.detectTechStack(prospect.id);
+      const updated = await apiClient.getProspect(prospect.id);
+      setProspect(updated);
       if (result && Object.keys(result).length > 0) {
         setTechStack(result);
         toast.success("Tech stack detected");
@@ -306,53 +300,6 @@ export default function LeadDetailPage() {
     toast.success(`${label} copied to clipboard`);
   };
 
-  const handleStageChange = async (newStage: string) => {
-    if (!lead || lead.stage === newStage) return;
-
-    try {
-      await apiClient.changeLeadStage(lead.id, newStage);
-      toast.success(`Stage changed to ${newStage}`);
-      fetchLead();
-    } catch {
-      toast.error("Failed to change stage");
-    }
-  };
-
-  const handleAddActivity = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!lead || !newActivity.title) return;
-
-    setSaving(true);
-    try {
-      await apiClient.createActivity({
-        leadId: lead.id,
-        type: newActivity.type,
-        title: newActivity.title,
-        description: newActivity.description || undefined,
-      });
-      setActivityModal(false);
-      setNewActivity({ type: "NOTE", title: "", description: "" });
-      toast.success("Activity added");
-      fetchLead();
-    } catch {
-      toast.error("Failed to create activity");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteLead = async () => {
-    if (!lead || !confirm("Are you sure you want to delete this lead?")) return;
-
-    try {
-      await apiClient.deleteLead(lead.id);
-      toast.success("Lead deleted");
-      router.push("/admin/leads");
-    } catch {
-      toast.error("Failed to delete lead");
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -361,15 +308,15 @@ export default function LeadDetailPage() {
     );
   }
 
-  if (!lead) {
+  if (!prospect) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-400">Lead not found</p>
+        <p className="text-gray-400">Prospect not found</p>
         <Link
-          href="/admin/leads"
-          className="text-accent hover:text-accent-light mt-2 inline-block"
+          href="/admin/prospects"
+          className="text-accent hover:underline mt-2 inline-block"
         >
-          Back to Leads
+          Back to Prospects
         </Link>
       </div>
     );
@@ -381,144 +328,117 @@ export default function LeadDetailPage() {
       <header className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
         <div>
           <Link
-            href="/admin/leads"
+            href="/admin/prospects"
             className="text-gray-400 hover:text-white text-sm mb-3 inline-flex items-center gap-1.5 transition-colors group"
           >
             <ChevronLeftIcon className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-            Back to Leads
+            Back to Prospects
           </Link>
           <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">
-            {lead.businessName}
+            {prospect.businessName}
           </h1>
           <div className="flex flex-wrap items-center gap-2 mt-3">
-            <span
-              className={`px-2.5 py-1 rounded-md text-xs font-semibold ${STAGE_CONFIG[lead.stage].bg} text-white`}
-            >
-              {lead.stage}
-            </span>
+            <StatusBadge status="PROSPECT" />
             <span className="px-2.5 py-1 bg-gray-700/50 text-gray-300 text-xs font-medium rounded-md border border-gray-600/50">
-              {lead.category.replace("_", " ")}
+              {prospect.category.replace("_", " ")}
             </span>
-            {lead.city && (
+            {prospect.city && (
               <span className="text-gray-500 text-sm flex items-center gap-1">
                 <LocationIcon className="w-3.5 h-3.5" />
-                {lead.city}
-                {lead.state && `, ${lead.state}`}
+                {prospect.city}
+                {prospect.state && `, ${prospect.state}`}
               </span>
             )}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <ActionButton
-            onClick={() => setActivityModal(true)}
-            variant="primary"
-            icon={<PlusIcon className="w-4 h-4" />}
+            onClick={handlePromote}
+            disabled={actionLoading}
+            variant="success"
+            icon={<PromoteIcon className="w-4 h-4" />}
           >
-            Add Activity
+            Promote to Lead
           </ActionButton>
-          <ActionButton onClick={handleDeleteLead} variant="danger">
+          <ActionButton
+            onClick={handleNotInterested}
+            disabled={actionLoading}
+            variant="secondary"
+          >
+            Not Interested
+          </ActionButton>
+          <ActionButton
+            onClick={handleDelete}
+            disabled={actionLoading}
+            variant="danger"
+          >
             Delete
           </ActionButton>
         </div>
       </header>
 
-      {/* Stage Pipeline */}
-      <Card>
-        <div className="flex items-center overflow-x-auto pb-2">
-          {STAGES.map((stage, index) => {
-            const isActive = lead.stage === stage;
-            const isPast = STAGES.indexOf(lead.stage) > index;
-            const isLast = index === STAGES.length - 1;
-
-            return (
-              <div key={stage} className="flex items-center flex-1 min-w-0">
-                <button
-                  onClick={() => handleStageChange(stage)}
-                  className="relative flex flex-col items-center justify-center py-2 px-1 flex-1 min-w-[80px] group"
-                >
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                      isActive
-                        ? `${STAGE_CONFIG[stage].bg} text-white ring-4 ring-white/10`
-                        : isPast
-                          ? "bg-green-500 text-white"
-                          : "bg-gray-700 text-gray-400 group-hover:bg-gray-600"
-                    }`}
-                  >
-                    {isPast ? <CheckIcon className="w-4 h-4" /> : index + 1}
-                  </div>
-                  <span
-                    className={`mt-2 text-xs font-medium transition-colors whitespace-nowrap ${
-                      isActive
-                        ? STAGE_CONFIG[stage].text
-                        : isPast
-                          ? "text-green-400"
-                          : "text-gray-500 group-hover:text-gray-400"
-                    }`}
-                  >
-                    {stage}
-                  </span>
-                </button>
-                {!isLast && (
-                  <div
-                    className={`h-0.5 flex-1 min-w-[20px] transition-colors ${
-                      isPast ? "bg-green-500" : "bg-gray-700"
-                    }`}
-                  />
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
       {/* Main Grid */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         {/* Main Content */}
         <div className="xl:col-span-8 space-y-6">
-          {/* Contact Information */}
-          <Card title="Contact Information" icon={<ContactIcon />}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InfoField
-                label="Contact Person"
-                value={lead.contactPerson}
-                icon={<UserIcon className="w-4 h-4" />}
-              />
-              <InfoField
-                label="Email"
-                value={lead.email}
-                icon={<EmailIcon className="w-4 h-4" />}
-                isEmail
-              />
-              <InfoField
-                label="Phone"
-                value={lead.phone}
-                icon={<PhoneIcon className="w-4 h-4" />}
-                isPhone
-              />
-              <InfoField
-                label="Website"
-                value={lead.website}
-                icon={<GlobeIcon className="w-4 h-4" />}
-                isLink
-              />
-              <InfoField
-                label="Address"
-                value={lead.address}
-                icon={<MapPinIcon className="w-4 h-4" />}
-              />
-              <InfoField
-                label="Location"
-                value={[lead.city, lead.state, lead.country]
-                  .filter(Boolean)
-                  .join(", ")}
-                icon={<LocationIcon className="w-4 h-4" />}
-              />
-            </div>
-          </Card>
+          {/* Contact & Location Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card title="Contact Information" icon={<ContactIcon />}>
+              <div className="space-y-4">
+                <InfoField
+                  label="Contact Person"
+                  value={prospect.contactPerson}
+                  icon={<UserIcon className="w-4 h-4" />}
+                />
+                <InfoField
+                  label="Email"
+                  value={prospect.email}
+                  icon={<EmailIcon className="w-4 h-4" />}
+                  isEmail
+                />
+                <InfoField
+                  label="Phone"
+                  value={prospect.phone}
+                  icon={<PhoneIcon className="w-4 h-4" />}
+                  isPhone
+                />
+                <InfoField
+                  label="Website"
+                  value={prospect.website}
+                  icon={<GlobeIcon className="w-4 h-4" />}
+                  isLink
+                />
+              </div>
+            </Card>
+
+            <Card title="Location" icon={<LocationIcon />}>
+              <div className="space-y-4">
+                <InfoField
+                  label="Address"
+                  value={prospect.address}
+                  icon={<MapPinIcon className="w-4 h-4" />}
+                />
+                <InfoField
+                  label="City"
+                  value={prospect.city}
+                  icon={<BuildingIcon className="w-4 h-4" />}
+                />
+                <InfoField
+                  label="State"
+                  value={prospect.state}
+                  icon={<MapIcon className="w-4 h-4" />}
+                />
+                <InfoField
+                  label="Locality"
+                  value={prospect.locality}
+                  icon={<PinIcon className="w-4 h-4" />}
+                />
+              </div>
+            </Card>
+          </div>
 
           {/* Technical Analysis */}
-          {lead.hasWebsite && (
+          {prospect.hasWebsite && (
             <Card
               title="Technical Analysis"
               icon={<CodeIcon className="text-cyan-400" />}
@@ -552,10 +472,10 @@ export default function LeadDetailPage() {
                     icon={<LighthouseIcon className="w-4 h-4" />}
                     label="Performance Scores"
                   />
-                  {lead.qualificationError ? (
+                  {prospect.qualificationError ? (
                     <ErrorAlert
                       title="Analysis Failed"
-                      message={lead.qualificationError}
+                      message={prospect.qualificationError}
                       action={
                         <ActionButton
                           onClick={handleRerunLighthouse}
@@ -567,24 +487,24 @@ export default function LeadDetailPage() {
                         </ActionButton>
                       }
                     />
-                  ) : lead.lighthouseScore !== null ? (
+                  ) : prospect.lighthouseScore !== null ? (
                     <>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <ScoreCard
                           label="Performance"
-                          score={lead.lighthouseScore}
+                          score={prospect.lighthouseScore}
                         />
-                        <ScoreCard label="SEO" score={lead.lighthouseSeo} />
+                        <ScoreCard label="SEO" score={prospect.lighthouseSeo} />
                         <ScoreCard
                           label="Accessibility"
-                          score={lead.lighthouseAccessibility}
+                          score={prospect.lighthouseAccessibility}
                         />
                         <ScoreCard
                           label="Best Practices"
-                          score={lead.lighthouseBestPractices}
+                          score={prospect.lighthouseBestPractices}
                         />
                       </div>
-                      {lead.websiteNeedsRedesign && (
+                      {prospect.websiteNeedsRedesign && (
                         <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center gap-2">
                           <WarningIcon className="w-4 h-4 text-red-400 flex-shrink-0" />
                           <p className="text-red-400 text-sm">
@@ -613,7 +533,7 @@ export default function LeadDetailPage() {
           )}
 
           {/* AI Research (Perplexity) - Raw Analysis */}
-          {lead.perplexityAnalysis && (
+          {prospect.perplexityAnalysis && (
             <Card
               title="AI Research"
               subtitle="Perplexity"
@@ -621,7 +541,7 @@ export default function LeadDetailPage() {
             >
               <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
                 <pre className="whitespace-pre-wrap text-gray-300 text-sm font-mono leading-relaxed overflow-auto max-h-96">
-                  {lead.perplexityAnalysis}
+                  {prospect.perplexityAnalysis}
                 </pre>
               </div>
             </Card>
@@ -633,11 +553,11 @@ export default function LeadDetailPage() {
             icon={<SparklesIcon className="text-purple-400" />}
             actions={
               <div className="flex items-center gap-3">
-                {lead?.salesIntelligence?.researchedAt && (
+                {prospect?.salesIntelligence?.researchedAt && (
                   <span className="text-xs text-gray-500">
                     Researched{" "}
                     {new Date(
-                      lead.salesIntelligence.researchedAt,
+                      prospect.salesIntelligence.researchedAt,
                     ).toLocaleDateString()}
                   </span>
                 )}
@@ -650,21 +570,21 @@ export default function LeadDetailPage() {
                 >
                   {researchLoading
                     ? "Researching..."
-                    : salesIntelligence
+                    : deepResearch
                       ? "Refresh"
                       : "Research"}
                 </ActionButton>
               </div>
             }
           >
-            {!salesIntelligence ? (
+            {!deepResearch ? (
               <EmptyState
                 icon={<SparklesIcon className="w-12 h-12" />}
                 message="No sales intelligence yet"
                 subtext="Click 'Research' to gather business intelligence"
               />
             ) : (
-              <SalesIntelligenceDisplay research={salesIntelligence} />
+              <SalesIntelligenceDisplay research={deepResearch} />
             )}
           </Card>
 
@@ -731,55 +651,6 @@ export default function LeadDetailPage() {
               </div>
             )}
           </Card>
-
-          {/* Activity Timeline */}
-          <Card
-            title="Activity Timeline"
-            icon={<ActivityIcon className="text-gray-400" />}
-          >
-            {lead.activities.length === 0 ? (
-              <EmptyState
-                icon={<ActivityIcon className="w-12 h-12" />}
-                message="No activities yet"
-                subtext="Click 'Add Activity' to log interactions"
-              />
-            ) : (
-              <div className="space-y-4">
-                {lead.activities.map((activity) => (
-                  <div key={activity.id} className="flex gap-4 group">
-                    <div className="w-10 h-10 rounded-full bg-gray-700/50 flex items-center justify-center flex-shrink-0 border border-gray-600/50">
-                      <ActivityTypeIcon type={activity.type} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="font-medium text-white">
-                            {activity.title}
-                          </p>
-                          <span
-                            className={`text-xs px-1.5 py-0.5 rounded ${getActivityTypeStyle(activity.type)}`}
-                          >
-                            {activity.type}
-                          </span>
-                        </div>
-                        <span className="text-xs text-gray-500 whitespace-nowrap">
-                          {new Date(activity.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                      {activity.description && (
-                        <p className="text-sm text-gray-400 mt-2">
-                          {activity.description}
-                        </p>
-                      )}
-                      <p className="text-xs text-gray-500 mt-2">
-                        by {activity.user.name}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
         </div>
 
         {/* Sidebar */}
@@ -788,7 +659,7 @@ export default function LeadDetailPage() {
           <Card>
             <div className="text-center">
               <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wider">
-                Lead Score
+                Prospect Score
               </p>
               <div className="relative inline-flex items-center justify-center">
                 <svg className="w-32 h-32 transform -rotate-90">
@@ -808,13 +679,13 @@ export default function LeadDetailPage() {
                     stroke="currentColor"
                     strokeWidth="8"
                     fill="none"
-                    strokeDasharray={`${(lead.score / 100) * 352} 352`}
+                    strokeDasharray={`${(prospect.score / 100) * 352} 352`}
                     className="text-accent transition-all duration-1000"
                     strokeLinecap="round"
                   />
                 </svg>
                 <span className="absolute text-4xl font-bold text-white">
-                  {lead.score}
+                  {prospect.score}
                 </span>
               </div>
               <p className="text-gray-400 text-sm mt-2">out of 100</p>
@@ -824,165 +695,53 @@ export default function LeadDetailPage() {
           {/* Details */}
           <Card title="Details">
             <div className="space-y-3">
-              <DetailRow label="Source" value={lead.source.replace("_", " ")} />
+              <DetailRow
+                label="Source"
+                value={prospect.source.replace("_", " ")}
+              />
               <DetailRow
                 label="Lead Type"
-                value={lead.leadType.replace("_", " ")}
+                value={prospect.leadType.replace("_", " ")}
               />
-              <DetailRow label="Priority" value={lead.priority} />
               <DetailRow
                 label="Has Website"
                 value={
                   <span
                     className={
-                      lead.hasWebsite ? "text-green-400" : "text-gray-500"
+                      prospect.hasWebsite ? "text-green-400" : "text-gray-500"
                     }
                   >
-                    {lead.hasWebsite ? "Yes" : "No"}
+                    {prospect.hasWebsite ? "Yes" : "No"}
                   </span>
                 }
               />
               <DetailRow
-                label="Created"
-                value={new Date(lead.createdAt).toLocaleDateString()}
-              />
-              <DetailRow
-                label="Updated"
-                value={new Date(lead.updatedAt).toLocaleDateString()}
+                label="Added"
+                value={new Date(prospect.createdAt).toLocaleDateString()}
               />
             </div>
           </Card>
 
-          {/* Tags */}
-          <Card title="Tags">
-            {lead.tags.length === 0 ? (
-              <p className="text-sm text-gray-500">No tags assigned</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {lead.tags.map((tag) => (
-                  <span
-                    key={tag.id}
-                    className="px-2.5 py-1 rounded-md text-xs font-medium"
-                    style={{
-                      backgroundColor: `${tag.color}20`,
-                      color: tag.color,
-                      borderWidth: 1,
-                      borderColor: `${tag.color}40`,
-                    }}
-                  >
-                    {tag.name}
-                  </span>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          {/* Notes */}
-          {lead.notes && (
-            <Card title="Notes">
-              <p className="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">
-                {lead.notes}
-              </p>
-            </Card>
-          )}
-
-          {/* Assigned To */}
-          {lead.assignedTo && (
-            <Card title="Assigned To">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-accent font-semibold">
-                  {lead.assignedTo.name.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <p className="text-white font-medium">
-                    {lead.assignedTo.name}
-                  </p>
-                  <p className="text-sm text-gray-400">
-                    {lead.assignedTo.email}
-                  </p>
-                </div>
+          {/* Source Job */}
+          {prospect.scrapeJob && (
+            <Card title="Source Job">
+              <div className="space-y-3">
+                <DetailRow label="Query" value={prospect.scrapeJob.query} />
+                <DetailRow
+                  label="Location"
+                  value={prospect.scrapeJob.location || "N/A"}
+                />
+                <DetailRow
+                  label="Date"
+                  value={new Date(
+                    prospect.scrapeJob.createdAt,
+                  ).toLocaleDateString()}
+                />
               </div>
             </Card>
           )}
         </aside>
       </div>
-
-      {/* Activity Modal */}
-      {activityModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-            <h2 className="text-lg font-semibold mb-4">Add Activity</h2>
-            <form onSubmit={handleAddActivity} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Type
-                </label>
-                <select
-                  value={newActivity.type}
-                  onChange={(e) =>
-                    setNewActivity({ ...newActivity, type: e.target.value })
-                  }
-                  className="w-full px-4 py-2.5 bg-gray-700/50 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors"
-                >
-                  <option value="NOTE">Note</option>
-                  <option value="CALL">Call</option>
-                  <option value="EMAIL">Email</option>
-                  <option value="MEETING">Meeting</option>
-                  <option value="TASK">Task</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  value={newActivity.title}
-                  onChange={(e) =>
-                    setNewActivity({ ...newActivity, title: e.target.value })
-                  }
-                  className="w-full px-4 py-2.5 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors"
-                  placeholder="Activity title"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Description (optional)
-                </label>
-                <textarea
-                  value={newActivity.description}
-                  onChange={(e) =>
-                    setNewActivity({
-                      ...newActivity,
-                      description: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2.5 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors resize-none"
-                  rows={3}
-                  placeholder="Add details..."
-                />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setActivityModal(false)}
-                  className="flex-1 py-2.5 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 py-2.5 bg-accent text-background font-medium rounded-lg hover:bg-accent-light transition-colors disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Add Activity"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1022,6 +781,21 @@ function Card({
       )}
       <div className="p-5">{children}</div>
     </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    PROSPECT: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    LEAD: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  };
+
+  return (
+    <span
+      className={`px-2.5 py-1 text-xs font-semibold rounded-md border ${colors[status] || colors.PROSPECT}`}
+    >
+      {status}
+    </span>
   );
 }
 
@@ -1429,11 +1203,7 @@ function TechToolList({
   );
 }
 
-function SalesIntelligenceDisplay({
-  research,
-}: {
-  research: SalesIntelligence;
-}) {
+function SalesIntelligenceDisplay({ research }: { research: DeepResearch }) {
   return (
     <div className="space-y-6">
       {/* Decision Makers */}
@@ -1616,17 +1386,6 @@ function SalesIntelligenceDisplay({
   );
 }
 
-function getActivityTypeStyle(type: string): string {
-  const styles: Record<string, string> = {
-    NOTE: "bg-gray-600/30 text-gray-400",
-    CALL: "bg-green-500/20 text-green-400",
-    EMAIL: "bg-blue-500/20 text-blue-400",
-    MEETING: "bg-purple-500/20 text-purple-400",
-    TASK: "bg-orange-500/20 text-orange-400",
-  };
-  return styles[type] || styles.NOTE;
-}
-
 // ============================================================================
 // Icons
 // ============================================================================
@@ -1787,6 +1546,60 @@ function MapPinIcon({ className }: { className?: string }) {
   );
 }
 
+function BuildingIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+      />
+    </svg>
+  );
+}
+
+function MapIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+      />
+    </svg>
+  );
+}
+
+function PinIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+      />
+    </svg>
+  );
+}
+
 function CodeIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -1895,7 +1708,7 @@ function WarningIcon({ className }: { className?: string }) {
   );
 }
 
-function CheckIcon({ className }: { className?: string }) {
+function PromoteIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -1907,131 +1720,8 @@ function CheckIcon({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth={2}
-        d="M5 13l4 4L19 7"
+        d="M5 10l7-7m0 0l7 7m-7-7v18"
       />
     </svg>
   );
-}
-
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M12 4v16m8-8H4"
-      />
-    </svg>
-  );
-}
-
-function ActivityIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-      />
-    </svg>
-  );
-}
-
-function ActivityTypeIcon({ type }: { type: string }) {
-  const className = "w-4 h-4";
-
-  switch (type) {
-    case "CALL":
-      return (
-        <svg
-          className={`${className} text-green-400`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={1.5}
-            d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-          />
-        </svg>
-      );
-    case "EMAIL":
-      return (
-        <svg
-          className={`${className} text-blue-400`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={1.5}
-            d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-          />
-        </svg>
-      );
-    case "MEETING":
-      return (
-        <svg
-          className={`${className} text-purple-400`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={1.5}
-            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-          />
-        </svg>
-      );
-    case "TASK":
-      return (
-        <svg
-          className={`${className} text-orange-400`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={1.5}
-            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-          />
-        </svg>
-      );
-    default:
-      return (
-        <svg
-          className={`${className} text-gray-400`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={1.5}
-            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-          />
-        </svg>
-      );
-  }
 }
