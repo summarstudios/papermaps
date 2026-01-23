@@ -102,12 +102,31 @@ After running the seed:
 
 **Important**: Change these credentials in production!
 
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `JWT_SECRET` | Yes | Secret key for JWT signing |
+| `REDIS_URL` | Yes | Redis connection string (for scraping queue) |
+| `FRONTEND_URL` | Yes | Frontend URL for CORS |
+| `CORS_ORIGINS` | No | Allowed CORS origins (comma-separated) |
+| `PERPLEXITY_API_KEY` | No | Perplexity API key for AI enrichment |
+| `GOOGLE_PLACES_API_KEY` | No | Google Places API for discovery |
+| `SCRAPE_DELAY_MS` | No | Delay between scrape requests (default: 3000) |
+
 ## Deployment (Railway)
 
-The project includes `railway.toml` for Railway deployment. Required services:
+See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for detailed Railway deployment guide, including:
 
-1. PostgreSQL database
-2. Redis instance
-3. This backend service
+- Environment variable setup
+- Common issues and solutions
+- Troubleshooting checklist
+- Database management
 
-Set all environment variables in Railway dashboard.
+### Quick Start
+
+1. Create Railway project with PostgreSQL and Redis services
+2. Connect this repository
+3. Set required environment variables
+4. Deploy!
