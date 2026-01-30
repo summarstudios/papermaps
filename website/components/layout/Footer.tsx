@@ -28,8 +28,8 @@ const footerLinks = [
 ];
 
 const socialLinks = [
-  { href: "https://twitter.com/leedo_io", label: "Twitter" },
-  { href: "https://linkedin.com/company/leedo", label: "LinkedIn" },
+  { href: "https://twitter.com/quadrant_io", label: "Twitter" },
+  { href: "https://linkedin.com/company/quadrant", label: "LinkedIn" },
 ];
 
 export default function Footer() {
@@ -49,17 +49,17 @@ export default function Footer() {
                   <span className="text-[var(--background)] font-bold text-sm">L</span>
                 </div>
                 <span className="text-xl font-semibold text-white">
-                  Leedo
+                  Quadrant A
                 </span>
               </Link>
               <p className="text-[var(--gray-400)] text-sm leading-relaxed max-w-xs mb-6">
                 B2B lead generation platform for India. Find, qualify, and convert leads with map-based targeting and AI-powered sales intelligence.
               </p>
               <a
-                href="mailto:hello@leedo.io"
+                href="mailto:hello@quadrant.io"
                 className="text-[var(--accent)] hover:text-white transition-colors text-sm font-medium"
               >
-                hello@leedo.io
+                hello@quadrant.io
               </a>
             </div>
 
@@ -89,7 +89,7 @@ export default function Footer() {
         {/* Bottom Bar */}
         <div className="py-6 border-t border-[var(--gray-800)] flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-[var(--gray-500)] text-sm">
-            &copy; {new Date().getFullYear()} Leedo. All rights reserved.
+            &copy; {new Date().getFullYear()} Quadrant A. All rights reserved.
           </p>
 
           <div className="flex items-center gap-6">

@@ -186,7 +186,7 @@ export default function AdminLayout({
             />
           </svg>
         </button>
-        <span className="font-semibold text-accent">Leedo</span>
+        <span className="font-semibold text-accent">Quadrant A</span>
         <div className="w-8" />
       </div>
 
@@ -199,7 +199,7 @@ export default function AdminLayout({
         <div className="p-4 border-b border-gray-700">
           <h1 className="text-lg font-semibold">
             <span className="text-accent">[</span>
-            Leedo
+            Quadrant A
             <span className="text-accent">]</span>
             <span className="text-gray-400 ml-2 text-sm font-normal">Admin</span>
           </h1>

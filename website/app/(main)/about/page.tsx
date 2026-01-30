@@ -131,7 +131,7 @@ export default function AboutPage() {
               <h2 className="text-3xl lg:text-4xl font-bold mb-6">Our Story</h2>
               <div className="space-y-4 text-[var(--gray-400)] text-lg leading-relaxed">
                 <p>
-                  Leedo started with a simple frustration: finding quality B2B
+                  Quadrant A started with a simple frustration: finding quality B2B
                   leads was too expensive and time-consuming for growing
                   businesses.
                 </p>

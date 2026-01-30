@@ -56,13 +56,13 @@ export default function Navigation() {
             <Link
               href="/"
               className="flex items-center gap-2 group"
-              aria-label="Leedo Home"
+              aria-label="Quadrant A Home"
             >
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--accent)] to-[#FF8C40] flex items-center justify-center">
                 <span className="text-[var(--background)] font-bold text-sm">L</span>
               </div>
               <span className="text-xl font-semibold text-white">
-                Leedo
+                Quadrant A
               </span>
             </Link>
 

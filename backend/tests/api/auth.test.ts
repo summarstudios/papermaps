@@ -16,12 +16,12 @@ describe('Auth API', () => {
 
   describe('POST /auth/login', () => {
     it('should login with valid credentials', async () => {
-      const result = await login('admin@leedo.io', 'admin123');
+      const result = await login('admin@quadrant-a.io', 'admin123');
 
       expect(result.token).toBeDefined();
       expect(result.token).toMatch(/^eyJ/); // JWT format
       expect(result.user).toBeDefined();
-      expect(result.user.email).toBe('admin@leedo.io');
+      expect(result.user.email).toBe('admin@quadrant-a.io');
       expect(result.user.role).toBe('ADMIN');
     });
 
@@ -38,7 +38,7 @@ describe('Auth API', () => {
     it('should reject invalid password', async () => {
       const { status, data } = await apiRequest('/auth/login', {
         method: 'POST',
-        body: { email: 'admin@leedo.io', password: 'wrongpassword' },
+        body: { email: 'admin@quadrant-a.io', password: 'wrongpassword' },
       });
 
       expect(status).toBe(401);
@@ -57,7 +57,7 @@ describe('Auth API', () => {
     it('should reject missing password', async () => {
       const { status } = await apiRequest('/auth/login', {
         method: 'POST',
-        body: { email: 'admin@leedo.io' },
+        body: { email: 'admin@quadrant-a.io' },
       });
 
       expect(status).toBe(400);
@@ -75,7 +75,7 @@ describe('Auth API', () => {
     it('should reject short password', async () => {
       const { status } = await apiRequest('/auth/login', {
         method: 'POST',
-        body: { email: 'admin@leedo.io', password: '123' },
+        body: { email: 'admin@quadrant-a.io', password: '123' },
       });
 
       expect(status).toBe(400);
@@ -90,7 +90,7 @@ describe('Auth API', () => {
 
       expect(status).toBe(200);
       expect((data as any).user).toBeDefined();
-      expect((data as any).user.email).toBe('admin@leedo.io');
+      expect((data as any).user.email).toBe('admin@quadrant-a.io');
       expect((data as any).user.id).toBeDefined();
       expect((data as any).user.role).toBe('ADMIN');
       expect((data as any).user.isActive).toBe(true);

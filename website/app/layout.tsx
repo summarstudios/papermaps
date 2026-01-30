@@ -12,8 +12,8 @@ const spaceGrotesk = Space_Grotesk({
 
 export const metadata: Metadata = {
   title: {
-    default: "Leedo | Lead Generation SaaS",
-    template: "%s | Leedo",
+    default: "Quadrant A | Lead Generation SaaS",
+    template: "%s | Quadrant A",
   },
   description:
     "Powerful lead generation platform. Discover, qualify, and manage B2B leads with automated scraping, technical analysis, and sales intelligence.",
@@ -27,14 +27,14 @@ export const metadata: Metadata = {
     "business leads",
     "SaaS",
   ],
-  authors: [{ name: "Leedo" }],
-  creator: "Leedo",
+  authors: [{ name: "Quadrant A" }],
+  creator: "Quadrant A",
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://leedo.io",
-    siteName: "Leedo",
-    title: "Leedo | Lead Generation SaaS",
+    url: "https://quadrant.io",
+    siteName: "Quadrant A",
+    title: "Quadrant A | Lead Generation SaaS",
     description:
       "Powerful lead generation platform. Discover, qualify, and manage B2B leads with automated scraping and sales intelligence.",
     images: [
@@ -42,13 +42,13 @@ export const metadata: Metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Leedo",
+        alt: "Quadrant A",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Leedo | Lead Generation SaaS",
+    title: "Quadrant A | Lead Generation SaaS",
     description:
       "Powerful lead generation platform. Discover, qualify, and manage B2B leads with automated scraping and sales intelligence.",
     images: ["/og-image.png"],
