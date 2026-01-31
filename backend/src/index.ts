@@ -51,7 +51,7 @@ async function main() {
   });
 
   await fastify.register(rateLimit, {
-    max: config.nodeEnv === 'development' ? 1000 : 100, // Higher limit for dev/testing
+    max: config.isDev ? 1000 : 100, // Higher limit for dev/testing
     timeWindow: "1 minute",
   });
 
@@ -72,8 +72,8 @@ async function main() {
     }
   });
 
-  // Health check
-  fastify.get("/health", async () => {
+  // Health check - available at both /health and /api/health
+  const healthHandler = async () => {
     let database = false;
     let redis = false;
 
@@ -95,7 +95,10 @@ async function main() {
       database,
       redis,
     };
-  });
+  };
+
+  fastify.get("/health", healthHandler);
+  fastify.get("/api/health", healthHandler);
 
   // Register routes
   await fastify.register(authRoutes, { prefix: "/api/auth" });
