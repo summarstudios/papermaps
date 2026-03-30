@@ -20,6 +20,9 @@ import { collectionsRoutes } from "./modules/collections/collections.routes.js";
 import { discoveryRoutes } from "./modules/discovery/discovery.routes.js";
 import { placesRoutes } from "./modules/places/places.routes.js";
 import { enrichmentRoutes } from "./modules/ai/enrichment.routes.js";
+import { itineraryGeneratorRoutes } from "./modules/ai/itinerary-generator.routes.js";
+import { curatorsRoutes, cityCuratorRoutes, adminCuratorRoutes } from "./modules/curators/curators.routes.js";
+import { suggestionsRoutes } from "./modules/suggestions/suggestions.routes.js";
 import { autoResearchRoutes, feedbackRoutes } from "./modules/autoResearch/autoResearch.routes.js";
 import { config } from "./config.js";
 import { jwtAuthenticate } from "./middleware/jwt.js";
@@ -178,6 +181,19 @@ async function main() {
 
   // AI Enrichment
   await fastify.register(enrichmentRoutes, { prefix: "/api/v1" });
+
+  // AI Itinerary Generator (curator-reviewed before publish)
+  await fastify.register(itineraryGeneratorRoutes, { prefix: "/api/v1" });
+
+  // Curators (public profiles + admin management)
+  await fastify.register(curatorsRoutes, { prefix: "/api/v1/curators" });
+  await fastify.register(cityCuratorRoutes, { prefix: "/api/v1" });
+  await fastify.register(adminCuratorRoutes, {
+    prefix: `/api/v1/${config.adminUrlPrefix}`,
+  });
+
+  // Community POI suggestions (public, rate-limited)
+  await fastify.register(suggestionsRoutes, { prefix: "/api/v1" });
 
   // AutoResearch (admin routes — behind obscure prefix)
   await fastify.register(autoResearchRoutes, {
