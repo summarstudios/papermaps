@@ -16,7 +16,7 @@ async function main() {
   // =========================================================================
   // Default Admin User
   // =========================================================================
-  const adminEmail = 'admin@localguide.in';
+  const adminEmail = 'admin@papermaps.in';
   const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
 
   if (!existingAdmin) {
@@ -30,7 +30,7 @@ async function main() {
         isActive: true,
       },
     });
-    console.log('Created default admin user: admin@localguide.in / admin123');
+    console.log('Created default admin user: admin@papermaps.in / admin123');
   } else {
     // Ensure existing admin has a password
     if (!existingAdmin.password) {

@@ -36,7 +36,7 @@ const frontendUrl = getRequiredEnv("FRONTEND_URL", "http://localhost:3000");
 // Database URL - required (no safe default)
 const databaseUrl = getRequiredEnv(
   "DATABASE_URL",
-  "postgresql://localhost:5432/localguide",
+  "postgresql://localhost:5432/papermaps",
 );
 
 // CORS origins - parse from env or use frontend URL
@@ -69,6 +69,7 @@ export const config = {
 
   // Anthropic API (for AI-powered POI enrichment)
   anthropicApiKey: getOptionalEnv("ANTHROPIC_API_KEY", ""),
+  anthropicModel: getOptionalEnv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
 
   // CDN base URL for media assets
   cdnBaseUrl: getOptionalEnv("CDN_BASE_URL", ""),
@@ -80,7 +81,7 @@ export const config = {
   ),
 
   // JWT Secret (for simple auth)
-  jwtSecret: getOptionalEnv("JWT_SECRET", "local-guide-dev-secret"),
+  jwtSecret: getOptionalEnv("JWT_SECRET", "paper-maps-dev-secret"),
 
   // Frontend
   frontendUrl,

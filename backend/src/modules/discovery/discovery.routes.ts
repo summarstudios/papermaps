@@ -1,6 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { prisma } from '../../lib/prisma.js';
 import { discoveryService } from './discovery.service.js';
+import { runDiscoveryJob } from './discovery.runner.js';
 import { success, paginated, error, ErrorCodes } from '../../lib/response.js';
 import { auditService, AuditActions, AuditResources } from '../audit/audit.service.js';
 
@@ -65,6 +67,12 @@ export async function discoveryRoutes(fastify: FastifyInstance) {
       const data = createJobSchema.parse(request.body);
       const user = (request as any).user;
 
+      // Validate city exists before creating job
+      const city = await prisma.city.findUnique({ where: { id: cityId }, select: { id: true } });
+      if (!city) {
+        return reply.status(404).send(error(ErrorCodes.NOT_FOUND, 'City not found'));
+      }
+
       const job = await discoveryService.createJob({
         cityId,
         categorySlug: data.categorySlug,
@@ -79,6 +87,12 @@ export async function discoveryRoutes(fastify: FastifyInstance) {
         resourceId: job.id,
         details: { cityId, categorySlug: data.categorySlug, searchQuery: data.searchQuery },
       });
+
+      // Fire and forget — don't await, let it run in background
+      runDiscoveryJob(job.id, cityId, { categorySlug: data.categorySlug, searchQuery: data.searchQuery })
+        .catch(err => {
+          fastify.log.error({ err, jobId: job.id }, 'Discovery job failed');
+        });
 
       return reply.status(201).send(success(job));
     } catch (err) {

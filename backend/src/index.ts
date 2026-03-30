@@ -20,6 +20,7 @@ import { collectionsRoutes } from "./modules/collections/collections.routes.js";
 import { discoveryRoutes } from "./modules/discovery/discovery.routes.js";
 import { placesRoutes } from "./modules/places/places.routes.js";
 import { enrichmentRoutes } from "./modules/ai/enrichment.routes.js";
+import { autoResearchRoutes, feedbackRoutes } from "./modules/autoResearch/autoResearch.routes.js";
 import { config } from "./config.js";
 import { jwtAuthenticate } from "./middleware/jwt.js";
 
@@ -177,6 +178,14 @@ async function main() {
 
   // AI Enrichment
   await fastify.register(enrichmentRoutes, { prefix: "/api/v1" });
+
+  // AutoResearch (admin routes — behind obscure prefix)
+  await fastify.register(autoResearchRoutes, {
+    prefix: `/api/v1/${config.adminUrlPrefix}/auto-research`,
+  });
+
+  // AutoResearch feedback (public — no auth, rate-limited)
+  await fastify.register(feedbackRoutes, { prefix: "/api/v1/feedback" });
 
   // =========================================================================
   // Start server

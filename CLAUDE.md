@@ -16,12 +16,19 @@ Paper Maps is a beautifully curated tourist map platform for Indian cities. It l
 - AI assists with enrichment (descriptions, tips, season) but humans approve everything before publish
 - Mobile-first public explore pages; admin panel for curation
 
+**AI Philosophy — Human-in-the-Loop Only:**
+- AI is used internally to assist curators (enrichment, itinerary drafting, discovery scoring)
+- **No direct AI-to-user interaction.** Everything the user sees has been reviewed and approved by a human curator
+- No chatbots, no AI-generated responses served directly to travelers
+- This ensures trust, accuracy, and editorial quality — the core of the Paper Maps brand
+
 **Key Features:**
 - Curated city maps with hand-picked Points of Interest (POIs)
 - Per-city theme system (custom colors, fonts, map tile styles)
 - MapLibre GL-powered interactive maps
 - Itineraries and Collections for guided exploration
-- AI-assisted POI enrichment (via Anthropic Claude)
+- AI-assisted POI enrichment (via Anthropic Claude) — curator-approved before publish
+- AI-assisted itinerary drafting — curator-reviewed before publish
 - Google Places integration for POI discovery
 - Sync endpoint for offline/mobile use
 - JWT authentication for the admin/curator dashboard

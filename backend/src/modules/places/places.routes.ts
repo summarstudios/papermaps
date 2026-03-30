@@ -29,7 +29,11 @@ export async function placesRoutes(fastify: FastifyInstance) {
         westLng: data.bounds.westLng,
       });
 
-      return success(result.results, result.isMock ? { warning: 'Using mock data - GOOGLE_PLACES_API_KEY not configured' } : undefined);
+      if (result.isMock) {
+        fastify.log.warn('places/search returning mock data — GOOGLE_PLACES_API_KEY is not configured');
+      }
+
+      return success(result.results, result.isMock ? { isMock: true, warning: result.warning } : undefined);
     } catch (err) {
       if (err instanceof z.ZodError) {
         return reply.status(400).send(error(ErrorCodes.VALIDATION_ERROR, 'Invalid request body'));
@@ -45,7 +49,11 @@ export async function placesRoutes(fastify: FastifyInstance) {
 
       const result = await placesService.getPlaceDetails(placeId);
 
-      return success(result.place, result.isMock ? { warning: 'Using mock data - GOOGLE_PLACES_API_KEY not configured' } : undefined);
+      if (result.isMock) {
+        fastify.log.warn(`places/${placeId} returning mock data — GOOGLE_PLACES_API_KEY is not configured`);
+      }
+
+      return success(result.place, result.isMock ? { isMock: true, warning: result.warning } : undefined);
     } catch (err) {
       throw err;
     }

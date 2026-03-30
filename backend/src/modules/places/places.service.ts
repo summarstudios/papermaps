@@ -1,5 +1,19 @@
 import { config } from '../../config.js';
 
+// ---------------------------------------------------------------------------
+// Mock data guard — used to prevent mock places from being persisted as POIs
+// ---------------------------------------------------------------------------
+
+export const MOCK_PLACE_ID_PREFIX = 'mock-place-';
+
+export function isMockPlaceId(placeId: string): boolean {
+  return placeId.startsWith(MOCK_PLACE_ID_PREFIX);
+}
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 interface CityBounds {
   northLat: number;
   southLat: number;
@@ -48,32 +62,32 @@ interface POIFormattedPlace {
 const MOCK_PLACES: PlaceResult[] = [
   {
     placeId: 'mock-place-1',
-    name: 'Mock Temple',
-    address: '123 Temple Street, City Center',
+    name: '[MOCK] Sample Temple',
+    address: '123 Temple Street, City Center (mock data)',
     latitude: 12.9716,
     longitude: 77.5946,
     types: ['tourist_attraction', 'place_of_worship'],
     rating: 4.5,
     userRatingCount: 1200,
-    editorialSummary: 'A beautiful historic temple in the heart of the city.',
+    editorialSummary: 'MOCK DATA — GOOGLE_PLACES_API_KEY not configured. This is not a real place.',
   },
   {
     placeId: 'mock-place-2',
-    name: 'Mock Market',
-    address: '456 Market Road, Old Town',
+    name: '[MOCK] Sample Market',
+    address: '456 Market Road, Old Town (mock data)',
     latitude: 12.9756,
     longitude: 77.5906,
     types: ['shopping_mall', 'tourist_attraction'],
     rating: 4.2,
     userRatingCount: 800,
-    editorialSummary: 'A vibrant local market with traditional goods.',
+    editorialSummary: 'MOCK DATA — GOOGLE_PLACES_API_KEY not configured. This is not a real place.',
   },
 ];
 
 const MOCK_PLACE_DETAILS: PlaceDetails = {
   placeId: 'mock-place-1',
-  name: 'Mock Temple',
-  address: '123 Temple Street, City Center',
+  name: '[MOCK] Sample Temple',
+  address: '123 Temple Street, City Center (mock data)',
   latitude: 12.9716,
   longitude: 77.5946,
   types: ['tourist_attraction', 'place_of_worship'],
@@ -82,7 +96,7 @@ const MOCK_PLACE_DETAILS: PlaceDetails = {
   phone: '+91 1234567890',
   website: 'https://example.com',
   openingHours: ['Monday: 6:00 AM - 8:00 PM', 'Tuesday: 6:00 AM - 8:00 PM'],
-  editorialSummary: 'A beautiful historic temple in the heart of the city.',
+  editorialSummary: 'MOCK DATA — GOOGLE_PLACES_API_KEY not configured. This is not a real place.',
   googleMapsUri: 'https://maps.google.com/?cid=mock-place-1',
 };
 
@@ -122,11 +136,12 @@ function parseGooglePlaceDetails(place: any): PlaceDetails {
 }
 
 export const placesService = {
-  async searchPlaces(query: string, bounds: CityBounds): Promise<{ results: PlaceResult[]; isMock: boolean }> {
+  async searchPlaces(query: string, bounds: CityBounds): Promise<{ results: PlaceResult[]; isMock: boolean; warning?: string }> {
     if (!config.googlePlacesApiKey) {
       return {
         results: MOCK_PLACES,
         isMock: true,
+        warning: 'GOOGLE_PLACES_API_KEY not configured — returning mock data. These results must NOT be imported as real POIs.',
       };
     }
 
@@ -164,11 +179,12 @@ export const placesService = {
     }
   },
 
-  async getPlaceDetails(placeId: string): Promise<{ place: PlaceDetails; isMock: boolean }> {
+  async getPlaceDetails(placeId: string): Promise<{ place: PlaceDetails; isMock: boolean; warning?: string }> {
     if (!config.googlePlacesApiKey) {
       return {
         place: { ...MOCK_PLACE_DETAILS, placeId },
         isMock: true,
+        warning: 'GOOGLE_PLACES_API_KEY not configured — returning mock data. This result must NOT be imported as a real POI.',
       };
     }
 
@@ -196,6 +212,10 @@ export const placesService = {
   },
 
   formatPlaceForPOI(place: PlaceResult): POIFormattedPlace {
+    if (isMockPlaceId(place.placeId)) {
+      throw new Error('Cannot convert mock place data to a POI. Configure GOOGLE_PLACES_API_KEY to use real data.');
+    }
+
     return {
       name: place.name,
       googlePlaceId: place.placeId,

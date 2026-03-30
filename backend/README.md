@@ -1,6 +1,6 @@
-# Local Guide Backend
+# Paper Maps Backend
 
-A backend system for Local Guide — curated tourist maps. Manages cities, points of interest, itineraries, and user accounts.
+A backend system for Paper Maps — curated tourist maps. Manages cities, points of interest, itineraries, and user accounts.
 
 ## Tech Stack
 
@@ -97,7 +97,7 @@ npm run start
 
 After running the seed:
 
-- Email: `admin@localguide.in`
+- Email: `admin@papermaps.in`
 - Password: `admin123`
 
 **Important**: Change these credentials in production!

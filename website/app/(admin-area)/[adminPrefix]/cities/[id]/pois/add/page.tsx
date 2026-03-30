@@ -10,9 +10,20 @@ interface PlaceResult {
   address: string;
   rating?: number;
   googlePlaceId: string;
+  /** The API returns `placeId` from Google Places — alias for compatibility */
+  placeId?: string;
   latitude: number;
   longitude: number;
   types?: string[];
+}
+
+/** The backend returns `placeId` but some paths alias it as `googlePlaceId`. */
+function getPlaceId(place: PlaceResult): string {
+  return place.googlePlaceId || place.placeId || "";
+}
+
+function isMockPlace(place: PlaceResult): boolean {
+  return getPlaceId(place).startsWith("mock-place-");
 }
 
 export default function QuickAddPOIPage() {
@@ -27,6 +38,7 @@ export default function QuickAddPOIPage() {
   const [searching, setSearching] = useState(false);
   const [importing, setImporting] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [isMockData, setIsMockData] = useState(false);
   const [city, setCity] = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);
 
@@ -65,6 +77,7 @@ export default function QuickAddPOIPage() {
     try {
       setSearching(true);
       setError("");
+      setIsMockData(false);
       const bounds = {
         northLat: (city.centerLat ?? 0) + 0.2,
         southLat: (city.centerLat ?? 0) - 0.2,
@@ -72,6 +85,8 @@ export default function QuickAddPOIPage() {
         westLng: (city.centerLng ?? 0) - 0.2,
       };
       const res = await apiClient.searchPlaces(query, bounds);
+      const mock = !!(res as any).meta?.isMock;
+      setIsMockData(mock);
       setResults(res.data ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Search failed");
@@ -81,8 +96,15 @@ export default function QuickAddPOIPage() {
   };
 
   const handleImport = async (place: PlaceResult) => {
+    const placeId = getPlaceId(place);
+
+    if (isMockPlace(place)) {
+      setError("Cannot import mock place data. Configure GOOGLE_PLACES_API_KEY for real results.");
+      return;
+    }
+
     try {
-      setImporting(place.googlePlaceId);
+      setImporting(placeId);
       setError("");
 
       const defaultCategory = categories.length > 0 ? categories[0].id : undefined;
@@ -93,7 +115,7 @@ export default function QuickAddPOIPage() {
         latitude: place.latitude,
         longitude: place.longitude,
         address: place.address,
-        googlePlaceId: place.googlePlaceId,
+        googlePlaceId: placeId,
         categoryId: defaultCategory,
       });
 
@@ -145,13 +167,21 @@ export default function QuickAddPOIPage() {
         <div className="rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-400">{error}</div>
       )}
 
+      {isMockData && (
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[13px] text-amber-400">
+          These are mock results — GOOGLE_PLACES_API_KEY is not configured. Mock places cannot be imported as POIs.
+        </div>
+      )}
+
       {results.length > 0 && (
         <div className="space-y-2">
           {results.map((place) => {
-            const alreadyAdded = existingPlaceIds.has(place.googlePlaceId);
+            const placeId = getPlaceId(place);
+            const alreadyAdded = existingPlaceIds.has(placeId);
+            const mock = isMockPlace(place);
             return (
               <div
-                key={place.googlePlaceId}
+                key={placeId}
                 className="border border-gray-800 rounded-lg bg-gray-900 p-3 flex items-center justify-between"
               >
                 <div className="min-w-0 flex-1 mr-3">
@@ -163,17 +193,21 @@ export default function QuickAddPOIPage() {
                     </span>
                   )}
                 </div>
-                {alreadyAdded ? (
+                {mock ? (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-500/10 text-amber-400 shrink-0">
+                    Mock Data
+                  </span>
+                ) : alreadyAdded ? (
                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-500/10 text-gray-400 shrink-0">
                     Already Added
                   </span>
                 ) : (
                   <button
                     onClick={() => handleImport(place)}
-                    disabled={importing === place.googlePlaceId}
+                    disabled={importing === placeId}
                     className="h-7 px-3 rounded-md bg-white text-gray-900 hover:bg-gray-100 text-[13px] font-medium transition-colors disabled:opacity-50 shrink-0"
                   >
-                    {importing === place.googlePlaceId ? "Importing..." : "Import"}
+                    {importing === placeId ? "Importing..." : "Import"}
                   </button>
                 )}
               </div>

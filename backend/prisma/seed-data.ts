@@ -99,8 +99,8 @@ async function main() {
   if (!adminUser) {
     adminUser = await prisma.user.create({
       data: {
-        email: 'admin@localguide.app',
-        name: 'Local Guide Admin',
+        email: 'admin@papermaps.in',
+        name: 'Paper Maps Admin',
         role: 'ADMIN',
         isActive: true,
       },

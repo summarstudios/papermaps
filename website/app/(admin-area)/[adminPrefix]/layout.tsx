@@ -96,6 +96,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     { href: `${adminBasePath}/categories`, label: "Categories", icon: CategoriesIcon },
     { href: `${adminBasePath}/tags`, label: "Tags", icon: TagsIcon },
     { href: `${adminBasePath}/users`, label: "Users", icon: UsersIcon },
+    { href: `${adminBasePath}/auto-research`, label: "AutoResearch", icon: AutoResearchIcon },
     { href: `${adminBasePath}/analytics`, label: "Analytics", icon: AnalyticsIcon },
     { href: `${adminBasePath}/coupons`, label: "Coupons", icon: CouponsIcon },
     { href: `${adminBasePath}/api-logs`, label: "API Logs", icon: ApiLogsIcon },
@@ -469,6 +470,24 @@ function CouponsIcon({ className }: { className?: string }) {
         strokeLinejoin="round"
         strokeWidth={1.5}
         d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"
+      />
+    </svg>
+  );
+}
+
+function AutoResearchIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.5}
+        d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
       />
     </svg>
   );

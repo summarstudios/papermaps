@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { poisService, CreatePOIData, UpdatePOIData } from './pois.service.js';
 import { success, paginated, error, ErrorCodes } from '../../lib/response.js';
 import { auditService, AuditActions, AuditResources } from '../audit/audit.service.js';
+import { isMockPlaceId } from '../places/places.service.js';
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -324,6 +325,15 @@ export async function poisRoutes(fastify: FastifyInstance) {
 
     try {
       const data = createPOISchema.parse(request.body);
+
+      // Prevent mock Google Places data from being imported as real POIs
+      if (data.googlePlaceId && isMockPlaceId(data.googlePlaceId)) {
+        return reply.status(400).send(error(
+          ErrorCodes.VALIDATION_ERROR,
+          'Cannot create POI from mock place data. Configure GOOGLE_PLACES_API_KEY to use real Google Places results.',
+        ));
+      }
+
       const createData: CreatePOIData = {
         cityId: data.cityId,
         name: data.name,

@@ -82,7 +82,7 @@ export const enrichmentService = {
     const client = new Anthropic({ apiKey: config.anthropicApiKey });
 
     const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: config.anthropicModel,
       max_tokens: 1500,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -179,6 +179,9 @@ export const enrichmentService = {
       throw new Error('ANTHROPIC_API_KEY is not configured');
     }
 
+    const CONCURRENCY_LIMIT = 3;
+    const DELAY_BETWEEN_MS = 500;
+
     const pois = await prisma.pOI.findMany({
       where: { cityId, status: 'AI_SUGGESTED' },
       select: { id: true },
@@ -188,17 +191,28 @@ export const enrichmentService = {
     let failed = 0;
     let skipped = 0;
 
-    for (const poi of pois) {
-      try {
-        const result = await enrichmentService.enrichPOI(poi.id);
-        if (result.enriched) {
-          enriched++;
-        } else {
-          skipped++;
-        }
-      } catch (err) {
-        console.error(`Failed to enrich POI ${poi.id}:`, err);
-        failed++;
+    for (let i = 0; i < pois.length; i += CONCURRENCY_LIMIT) {
+      const batch = pois.slice(i, i + CONCURRENCY_LIMIT);
+
+      await Promise.all(
+        batch.map(async (poi) => {
+          try {
+            const result = await enrichmentService.enrichPOI(poi.id);
+            if (result.enriched) {
+              enriched++;
+            } else {
+              skipped++;
+            }
+          } catch (err) {
+            console.error(`Failed to enrich POI ${poi.id}:`, err);
+            failed++;
+          }
+        }),
+      );
+
+      // Delay between batches to avoid rate limits
+      if (i + CONCURRENCY_LIMIT < pois.length) {
+        await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_MS));
       }
     }
 

@@ -107,6 +107,7 @@ model User {
   uploadedMedia      Media[]
   discoveryJobs      DiscoveryJob[]
   auditLogs          AuditLog[]
+  reviewedProposals  AutoResearchProposal[] @relation("ProposalReviewer")
 
   @@map("users")
 }
@@ -521,4 +522,152 @@ model Setting {
   updatedAt DateTime @updatedAt
 
   @@map("settings")
+}
+
+// AutoResearch Models
+
+model AutoResearchSignal {
+  id            String   @id @default(cuid())
+  source        String   // instagram_geotag | travel_blog | zomato | google_reviews | reddit | local_news
+  rawData       Json     // full raw signal payload
+  placeName     String
+  placeLocation Json?    // { lat, lng, area }
+  citySlug      String
+  signalType    String   // new_place | trending | closure | rising | local_rec | editorial_mention
+  scrapedAt     DateTime
+  processedAt   DateTime?
+  candidateId   String?  // link to resolved candidate
+  status        String   @default("pending") // pending | aggregated | filtered | rejected
+  createdAt     DateTime @default(now())
+
+  candidate AutoResearchCandidate? @relation(fields: [candidateId], references: [id])
+
+  @@index([citySlug])
+  @@index([source])
+  @@index([status])
+  @@index([scrapedAt])
+  @@index([placeName])
+  @@map("auto_research_signals")
+}
+
+model AutoResearchCandidate {
+  id                  String   @id @default(cuid())
+  placeName           String
+  placeLocation       Json     // { lat, lng, area }
+  citySlug            String
+  resolvedGoogleId    String?  // Google Places ID after geocoding
+  corroborationCount  Int      @default(1)
+  sources             String[] // which source types contributed
+  aggregatedEvidence  Json     // combined evidence from all signals
+  status              String   @default("pending") // pending | scored | proposed | rejected
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  signals   AutoResearchSignal[]
+  proposals AutoResearchProposal[]
+
+  @@index([citySlug])
+  @@index([status])
+  @@index([resolvedGoogleId])
+  @@index([corroborationCount])
+  @@map("auto_research_candidates")
+}
+
+model AutoResearchProposal {
+  id                 String    @id @default(cuid())
+  candidateId        String?
+  proposalType       String    // add_poi | remove_poi | update_poi | new_city | flag_review
+  citySlug           String
+  existingPoiId      String?   // for remove/update proposals
+
+  // LLM scoring output
+  llmScore           Float
+  llmDimensions      Json      // { hiddenGem: 8.2, authenticity: 7.5, ... }
+  llmReasoning       String    @db.Text
+  llmConcerns        String?   @db.Text
+  llmModel           String    // which model was used
+  llmPromptVersion   String    // for reproducibility
+
+  // Proposal content
+  suggestedName      String?
+  suggestedCategory  String?
+  suggestedDesc      String?   @db.Text
+  evidenceSummary    String    @db.Text
+  sourceUrls         String[]  // links to source articles/posts
+
+  // Review state
+  status             String    @default("pending") // pending | approved | rejected | deferred
+  reviewedById       String?   // curator user ID
+  reviewedAt         DateTime?
+  reviewNote         String?   @db.Text
+
+  // Outcome
+  resultingPoiId     String?   // if approved add, the new POI id
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  candidate  AutoResearchCandidate? @relation(fields: [candidateId], references: [id])
+  reviewedBy User?                  @relation("ProposalReviewer", fields: [reviewedById], references: [id])
+
+  @@index([citySlug])
+  @@index([status])
+  @@index([proposalType])
+  @@index([llmScore])
+  @@index([candidateId])
+  @@index([reviewedById])
+  @@index([createdAt])
+  @@map("auto_research_proposals")
+}
+
+model AutoResearchAuditTrail {
+  id           String   @id @default(cuid())
+  poiId        String?  // the POI this is about (nullable for new city proposals)
+  eventType    String   // signal_received | candidate_created | llm_scored | proposal_created | proposal_reviewed | poi_published | poi_flagged | poi_removed | rubric_updated
+  proposalId   String?
+  actorType    String   // system | curator
+  actorId      String?  // user ID if human
+  metadata     Json     // full event context
+  createdAt    DateTime @default(now())
+
+  @@index([poiId])
+  @@index([eventType])
+  @@index([proposalId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("auto_research_audit_trail")
+}
+
+model AutoResearchFeedbackSignal {
+  id          String   @id @default(cuid())
+  poiId       String
+  citySlug    String
+  eventType   String   // poi_click | poi_save | poi_share | poi_directions | poi_deepdive | collection_save | itinerary_add
+  sessionId   String?  // anonymous session for aggregation
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([poiId])
+  @@index([citySlug])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("auto_research_feedback_signals")
+}
+
+model CityReadinessScore {
+  id                String   @id @default(cuid())
+  citySlug          String   @unique
+  cityName          String
+  totalCandidates   Int      @default(0)
+  qualityCandidates Int      @default(0) // score > 7.0
+  sourceDiversity   Int      @default(0) // how many different sources have coverage
+  geographicSpread  Float    @default(0) // std dev of candidate locations
+  readinessScore    Float    @default(0) // composite score
+  isReady           Boolean  @default(false)
+  lastCalculated    DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("city_readiness_scores")
 }

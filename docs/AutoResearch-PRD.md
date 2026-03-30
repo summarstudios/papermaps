@@ -1,9 +1,10 @@
 # AutoResearch PRD — Paper Maps Living Intelligence System
 
-> **Version:** 1.0  
-> **Date:** 2026-03-30  
-> **Status:** Draft → Implementation  
+> **Version:** 1.1
+> **Date:** 2026-03-31
+> **Status:** Draft → Implementation
 > **Repo:** summarstudios/papermaps
+> **Changelog:** v1.1 — Added AI Philosophy section (§1.1). Hard constraint: no direct AI-to-user interaction. Removed "Ask a Local" chat feature. All AI output requires human curator approval before reaching users.
 
 ---
 
@@ -23,6 +24,26 @@ Inspired by Andrej Karpathy's AutoResearch pattern: **plan → search → try �
 - Curators spend time on decisions, not on discovery
 - New cities get objectively ready-to-launch signals
 - The curation rubric improves over time from user feedback
+
+### 1.1 AI Philosophy — Human-in-the-Loop Only
+
+**Paper Maps does not expose AI directly to users.** No chatbots, no AI-generated responses, no "Ask a Local" features. Every piece of content a traveler sees — POI descriptions, itineraries, collections, tips — has been reviewed and approved by a human curator before publication.
+
+AI is used exclusively as an **internal tool for curators:**
+
+| AI Feature | Purpose | Human Gate |
+|------------|---------|------------|
+| POI Enrichment | Draft descriptions, tips, best times, tags for POIs | Curator reviews and approves before status moves to PUBLISHED |
+| Itinerary Drafting | Generate candidate itineraries from curated POIs | Curator reviews, edits, and publishes |
+| AutoResearch Scoring | Score candidate places against the Paper Maps rubric | Curator sees proposals with scores + evidence, makes final call |
+| Discovery | Find candidate POIs from Google Places | POIs enter as AI_SUGGESTED, require curator approval |
+
+**Why this matters:**
+- **Trust:** Travelers rely on Paper Maps for accurate, opinionated recommendations. An AI hallucinating wrong opening hours or fabricating a "local tip" destroys that trust instantly.
+- **Editorial voice:** Paper Maps has a distinct editorial personality. AI can draft, but the curator's taste and judgment define the final product.
+- **Liability:** Incorrect AI-generated directions, safety info, or cultural advice (e.g., dress codes at religious sites) carries real-world risk for travelers.
+
+This is a hard architectural constraint, not a temporary limitation. If a feature involves serving AI-generated content directly to a user without curator review, it does not belong in Paper Maps.
 
 ---
 
@@ -104,6 +125,7 @@ The loop never stops. Each iteration makes the next one smarter.
 
 **Doesn't:**
 - Publish directly to maps without human review (curator is always in the loop)
+- Interact with users directly (no chatbots, no AI-generated responses served to travelers)
 - Make final editorial decisions
 - Replace the curator's taste and judgment
 - Scrape data in ways that violate platforms' ToS (uses public APIs and ethical scraping)
