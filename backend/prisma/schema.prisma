@@ -98,10 +98,21 @@ model User {
   password  String?
   role      UserRole @default(VIEWER)
   isActive  Boolean  @default(true)
+
+  // Curator profile fields
+  displayName    String?
+  bio            String?   @db.Text
+  avatarUrl      String?
+  baseCity       String?
+  curatorSince   DateTime?
+  isPublicCurator Boolean  @default(false)
+  socialLinks    Json?     // { instagram?, twitter?, website? }
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   curatedPOIs        POI[]          @relation("CuratedBy")
+  curatedCities      City[]         @relation("CityCurator")
   createdItineraries Itinerary[]
   createdCollections Collection[]
   uploadedMedia      Media[]
@@ -138,9 +149,12 @@ model City {
   status    CityStatus @default(DRAFT)
   sortOrder Int        @default(0)
 
+  curatorId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  curator       User?          @relation("CityCurator", fields: [curatorId], references: [id])
   theme         CityTheme?
   pois          POI[]
   categories    Category[]
