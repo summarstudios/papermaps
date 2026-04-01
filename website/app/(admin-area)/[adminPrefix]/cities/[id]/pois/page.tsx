@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
+import { AdminTable } from "@/components/admin/AdminTable";
 
 interface POI {
   id: string;
@@ -162,76 +163,83 @@ export default function POIListPage() {
         <div className="rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-400">{error}</div>
       )}
 
-      {loading && (
-        <div className="flex items-center justify-center h-40">
-          <div className="animate-spin rounded-full h-6 w-6 border-2 border-accent border-t-transparent" />
-        </div>
-      )}
-
-      {!loading && (
-        <div className="border border-gray-800 rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-900/50 border-b border-gray-800">
-              <tr>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Category</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Priority</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Quality</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800/50">
-              {pois.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-3 py-8 text-center text-[13px] text-gray-500">
-                    No POIs found
-                  </td>
-                </tr>
-              )}
-              {pois.map((poi) => (
-                <tr
-                  key={poi.id}
-                  onClick={() => router.push(`/${adminPrefix}/pois/${poi.id}`)}
-                  className="hover:bg-gray-800/30 transition-colors cursor-pointer"
-                >
-                  <td className="px-3 py-2 text-[13px] text-gray-200 font-medium">{poi.name}</td>
-                  <td className="px-3 py-2">
-                    {poi.category ? (
-                      <span className="inline-flex items-center gap-1 text-[13px]">
-                        {poi.category.emoji && <span>{poi.category.emoji}</span>}
-                        <span
-                          className="px-1.5 py-0.5 rounded text-[11px] font-medium"
-                          style={{
-                            backgroundColor: poi.category.color ? `${poi.category.color}20` : undefined,
-                            color: poi.category.color ?? "#9ca3af",
-                          }}
-                        >
-                          {poi.category.name}
-                        </span>
-                      </span>
-                    ) : (
-                      <span className="text-gray-500 text-[13px]">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium ${STATUS_STYLES[poi.status] ?? "bg-gray-500/10 text-gray-400"}`}>
-                      {poi.status.replace(/_/g, " ")}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className={`text-[13px] ${PRIORITY_STYLES[poi.priority ?? ""] ?? "text-gray-500"}`}>
-                      {poi.priority?.replace(/_/g, " ") ?? "—"}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-[13px] text-gray-400">
-                    {poi.qualityScore != null ? `${poi.qualityScore}%` : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <AdminTable
+        columns={[
+          {
+            key: "name",
+            label: "Name",
+            sortable: true,
+            render: (_, poi) => (
+              <span className="text-[13px] text-gray-200 font-medium">{poi.name}</span>
+            ),
+          },
+          {
+            key: "category",
+            label: "Category",
+            render: (_, poi) => {
+              const cat = poi.category;
+              if (!cat) return <span className="text-gray-500 text-[13px]">—</span>;
+              return (
+                <span className="inline-flex items-center gap-1 text-[13px]">
+                  {cat.emoji && <span>{cat.emoji}</span>}
+                  <span
+                    className="px-1.5 py-0.5 rounded text-[11px] font-medium"
+                    style={{
+                      backgroundColor: cat.color ? `${cat.color}20` : undefined,
+                      color: cat.color ?? "#9ca3af",
+                    }}
+                  >
+                    {cat.name}
+                  </span>
+                </span>
+              );
+            },
+          },
+          {
+            key: "status",
+            label: "Status",
+            sortable: true,
+            render: (_, poi) => (
+              <span
+                className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium ${
+                  STATUS_STYLES[poi.status] ?? "bg-gray-500/10 text-gray-400"
+                }`}
+              >
+                {poi.status.replace(/_/g, " ")}
+              </span>
+            ),
+          },
+          {
+            key: "priority",
+            label: "Priority",
+            sortable: true,
+            render: (_, poi) => (
+              <span
+                className={`text-[13px] ${
+                  PRIORITY_STYLES[poi.priority ?? ""] ?? "text-gray-500"
+                }`}
+              >
+                {poi.priority?.replace(/_/g, " ") ?? "—"}
+              </span>
+            ),
+          },
+          {
+            key: "qualityScore",
+            label: "Quality",
+            sortable: true,
+            render: (_, poi) =>
+              poi.qualityScore != null ? (
+                <span className="text-[13px] text-gray-400">{poi.qualityScore}%</span>
+              ) : (
+                "—"
+              ),
+          },
+        ]}
+        data={pois}
+        loading={loading}
+        emptyTitle="No POIs found"
+        onRowClick={(poi) => router.push(`/${adminPrefix}/pois/${poi.id}`)}
+      />
     </div>
   );
 }

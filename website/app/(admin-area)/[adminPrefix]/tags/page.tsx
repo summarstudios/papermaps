@@ -2,6 +2,12 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "@/lib/api-client";
+import {
+  AdminTable,
+  ColorSwatch,
+  EditButton,
+  DeleteButton,
+} from "@/components/admin/AdminTable";
 
 interface Tag {
   id: string;
@@ -151,68 +157,47 @@ export default function TagsPage() {
         </div>
       )}
 
-      {loading && (
-        <div className="flex items-center justify-center h-40">
-          <div className="animate-spin rounded-full h-6 w-6 border-2 border-accent border-t-transparent" />
-        </div>
-      )}
-
-      {!loading && (
-        <div className="border border-gray-800 rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-900/50 border-b border-gray-800">
-              <tr>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Color</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Usage</th>
-                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800/50">
-              {tags.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-3 py-8 text-center text-[13px] text-gray-500">
-                    No tags yet
-                  </td>
-                </tr>
-              )}
-              {tags.map((tag) => (
-                <tr key={tag.id} className="hover:bg-gray-800/30 transition-colors">
-                  <td className="px-3 py-2 text-[13px] text-gray-200">{tag.name}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className="h-3 w-3 rounded-full inline-block"
-                        style={{ backgroundColor: tag.color }}
-                      />
-                      <span className="text-[13px] text-gray-400 font-mono">{tag.color}</span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 text-[13px] text-gray-400">
-                    {tag._count?.pois ?? 0} POIs
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => startEdit(tag)}
-                        className="h-7 px-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 text-[13px] transition-colors"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(tag.id)}
-                        className="h-7 px-2 rounded-md text-red-400/60 hover:text-red-400 hover:bg-red-500/10 text-[13px] transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <AdminTable
+        columns={[
+          {
+            key: "name",
+            label: "Name",
+            sortable: true,
+          },
+          {
+            key: "color",
+            label: "Color",
+            sortable: true,
+            render: (_, tag) => (
+              <div className="flex items-center gap-1.5">
+                <ColorSwatch color={(tag as Tag).color} type="circle" />
+                <span className="text-[13px] text-gray-400 font-mono">
+                  {(tag as Tag).color}
+                </span>
+              </div>
+            ),
+          },
+          {
+            key: "pois",
+            label: "Usage",
+            render: (_, tag) => `${(tag as Tag)._count?.pois ?? 0} POIs`,
+          },
+          {
+            key: "actions",
+            label: "",
+            width: "120px",
+            render: (_, tag) => (
+              <div className="flex items-center justify-end gap-1">
+                <EditButton onClick={(e) => { e.stopPropagation(); startEdit(tag as Tag); }} />
+                <DeleteButton onClick={(e) => { e.stopPropagation(); handleDelete((tag as Tag).id); }} />
+              </div>
+            ),
+          },
+        ]}
+        data={tags}
+        loading={loading}
+        emptyTitle="No tags yet"
+      />
     </div>
   );
 }

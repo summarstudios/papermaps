@@ -2,6 +2,12 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "@/lib/api-client";
+import {
+  AdminTable,
+  ColorSwatch,
+  EditButton,
+  DeleteButton,
+} from "@/components/admin/AdminTable";
 
 interface Category {
   id: string;
@@ -197,68 +203,70 @@ export default function CategoriesPage() {
       )}
 
       {/* Table */}
-      {!loading && (
-        <div className="border border-gray-800 rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-900/50 border-b border-gray-800">
-              <tr>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Color</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Emoji</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Scope</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">POIs</th>
-                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800/50">
-              {categories.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center text-[13px] text-gray-500">
-                    No categories yet
-                  </td>
-                </tr>
-              )}
-              {categories.map((cat) => (
-                <tr key={cat.id} className="hover:bg-gray-800/30 transition-colors">
-                  <td className="px-3 py-2 text-[13px] text-gray-200">{cat.name}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className="h-3 w-3 rounded-sm inline-block"
-                        style={{ backgroundColor: cat.color ?? "#6366f1" }}
-                      />
-                      <span className="text-[13px] text-gray-400 font-mono">{cat.color}</span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 text-[13px]">{cat.emoji || "—"}</td>
-                  <td className="px-3 py-2">
-                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium ${cat.isGlobal ? "bg-blue-500/10 text-blue-400" : "bg-gray-500/10 text-gray-400"}`}>
-                      {cat.isGlobal ? "Global" : "City"}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-[13px] text-gray-400">{cat._count?.pois ?? 0}</td>
-                  <td className="px-3 py-2 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => startEdit(cat)}
-                        className="h-7 px-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 text-[13px] transition-colors"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(cat.id)}
-                        className="h-7 px-2 rounded-md text-red-400/60 hover:text-red-400 hover:bg-red-500/10 text-[13px] transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <AdminTable
+        columns={[
+          {
+            key: "name",
+            label: "Name",
+            sortable: true,
+          },
+          {
+            key: "color",
+            label: "Color",
+            sortable: true,
+            render: (_, cat) => (
+              <div className="flex items-center gap-1.5">
+                <ColorSwatch color={(cat as Category).color ?? "#6366f1"} />
+                <span className="text-[13px] text-gray-400 font-mono">
+                  {(cat as Category).color}
+                </span>
+              </div>
+            ),
+          },
+          {
+            key: "emoji",
+            label: "Emoji",
+            render: (_, cat) => (cat as Category).emoji || "—",
+          },
+          {
+            key: "isGlobal",
+            label: "Scope",
+            render: (_, cat) => {
+              const cat2 = cat as Category;
+              return (
+                <span
+                  className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium ${
+                    cat2.isGlobal
+                      ? "bg-blue-500/10 text-blue-400"
+                      : "bg-gray-500/10 text-gray-400"
+                  }`}
+                >
+                  {cat2.isGlobal ? "Global" : "City"}
+                </span>
+              );
+            },
+          },
+          {
+            key: "pois",
+            label: "POIs",
+            render: (_, cat) => (cat as Category)._count?.pois ?? 0,
+          },
+          {
+            key: "actions",
+            label: "",
+            width: "120px",
+            render: (_, cat) => (
+              <div className="flex items-center justify-end gap-1">
+                <EditButton onClick={(e) => { e.stopPropagation(); startEdit(cat as Category); }} />
+                <DeleteButton onClick={(e) => { e.stopPropagation(); handleDelete((cat as Category).id); }} />
+              </div>
+            ),
+          },
+        ]}
+        data={categories}
+        loading={loading}
+        emptyTitle="No categories yet"
+      />
     </div>
   );
 }

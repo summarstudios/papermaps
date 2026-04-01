@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+import { AdminTable } from "@/components/admin/AdminTable";
 
 interface User {
   id: string;
@@ -198,128 +199,97 @@ export default function AdminUsersPage() {
       )}
 
       {/* Users Table */}
-      <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-accent border-t-transparent" />
-          </div>
-        ) : users.length === 0 ? (
-          <div className="flex items-center justify-center h-64 text-gray-400">
-            No users found
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-900/50">
-                <tr>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    User
-                  </th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Role
-                  </th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    POIs
-                  </th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Joined
-                  </th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-700">
-                {users.map((user) => (
-                  <tr
-                    key={user.id}
-                    className="hover:bg-gray-700/30 transition-colors"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-purple-600 flex items-center justify-center text-black text-sm font-bold">
-                          {user.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="text-[13px] font-medium text-white">{user.name}</p>
-                          <p className="text-xs text-gray-400">{user.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${
-                          user.role === "ADMIN"
-                            ? "bg-purple-500/20 text-purple-400"
-                            : "bg-blue-500/20 text-blue-400"
-                        }`}
-                      >
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-[13px] text-gray-300">
-                      {user._count.curatedPOIs}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleToggleStatus(user)}
-                        className={`px-1.5 py-0.5 rounded text-[11px] font-medium transition-colors ${
-                          user.isActive
-                            ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
-                            : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
-                        }`}
-                      >
-                        {user.isActive ? "Active" : "Inactive"}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-400">
-                      {formatDate(user.createdAt)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => handleViewUser(user.id)}
-                        className="text-xs text-accent hover:text-accent-light transition-colors"
-                      >
-                        View
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Pagination */}
-        {pagination && pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-700">
-            <p className="text-sm text-gray-400">
-              Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-              {Math.min(pagination.page * pagination.limit, pagination.total)} of{" "}
-              {pagination.total} users
-            </p>
-            <div className="flex gap-2">
+      <AdminTable
+        columns={[
+          {
+            key: "name",
+            label: "User",
+            render: (_, user) => (
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-purple-600 flex items-center justify-center text-black text-sm font-bold shrink-0">
+                  {(user as User).name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-[13px] font-medium text-white">{(user as User).name}</p>
+                  <p className="text-xs text-gray-400">{(user as User).email}</p>
+                </div>
+              </div>
+            ),
+          },
+          {
+            key: "role",
+            label: "Role",
+            sortable: true,
+            render: (_, user) => {
+              const u = user as User;
+              return (
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[11px] font-medium ${
+                    u.role === "ADMIN"
+                      ? "bg-purple-500/20 text-purple-400"
+                      : "bg-blue-500/20 text-blue-400"
+                  }`}
+                >
+                  {u.role}
+                </span>
+              );
+            },
+          },
+          {
+            key: "curatedPOIs",
+            label: "POIs",
+            render: (_, user) => (user as User)._count.curatedPOIs,
+          },
+          {
+            key: "isActive",
+            label: "Status",
+            render: (_, user) => {
+              const u = user as User;
+              return (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleToggleStatus(u); }}
+                  className={`px-1.5 py-0.5 rounded text-[11px] font-medium transition-colors ${
+                    u.isActive
+                      ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                      : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                  }`}
+                >
+                  {u.isActive ? "Active" : "Inactive"}
+                </button>
+              );
+            },
+          },
+          {
+            key: "createdAt",
+            label: "Joined",
+            sortable: true,
+            render: (_, user) => (
+              <span className="text-xs text-gray-400">
+                {formatDate((user as User).createdAt)}
+              </span>
+            ),
+          },
+          {
+            key: "actions",
+            label: "",
+            width: "80px",
+            render: (_, user) => (
               <button
-                onClick={() => setPage(page - 1)}
-                disabled={page === 1}
-                className="px-3 py-1 bg-gray-700 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600 transition-colors"
+                onClick={(e) => { e.stopPropagation(); handleViewUser((user as User).id); }}
+                className="text-xs text-accent hover:text-accent-light transition-colors"
               >
-                Previous
+                View
               </button>
-              <button
-                onClick={() => setPage(page + 1)}
-                disabled={page === pagination.totalPages}
-                className="px-3 py-1 bg-gray-700 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600 transition-colors"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+            ),
+          },
+        ]}
+        data={users}
+        loading={loading}
+        emptyTitle="No users found"
+        pagination={pagination ?? undefined}
+        onPageChange={(p) => setPage(p)}
+        className="bg-gray-800 border-gray-700"
+      />
 
       {/* User Details Modal */}
       {showModal && selectedUser && (
